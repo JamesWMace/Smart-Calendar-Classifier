@@ -49,7 +49,8 @@ public struct EventResolver: Sendable {
         let (startTime, endTime) = times(for: event)
 
         let isMultiDay = startDay != nil && endDay != nil && endDay! > startDay!
-        let isAllDay = event.timing == .allDay && (startTime == nil || isMultiDay)
+        // No stated time means all day; the user can still switch it to a timed event.
+        let isAllDay = startTime == nil || (event.timing == .allDay && isMultiDay)
 
         let (location, locationURL) = groundedLocation(event.location)
         var candidate = EventCandidate(
@@ -75,16 +76,10 @@ public struct EventResolver: Sendable {
             if let statedZone, statedZone.secondsFromGMT(for: start) != context.timeZone.secondsFromGMT(for: start) {
                 candidate.sourceTimeZone = statedZone
             }
-        } else if let startDay {
-            // A day but no time: keep the day, make the user enter the time (decision #7).
-            candidate.start = startDay
-            candidate.startTimeMissing = true
         } else if let startTime {
             // A time but no day: remember the time for when the user picks the day.
             candidate.startTimeHint = DateComponents(timeZone: eventZone, hour: startTime.hour, minute: startTime.minute)
             candidate.sourceTimeZone = statedZone
-        } else {
-            candidate.startTimeMissing = true
         }
 
         candidate.notes = NotesComposer.compose(

@@ -8,13 +8,13 @@ the event lands in Apple Calendar.
 
 | # | Topic | Decision |
 |---|-------|----------|
-| 1 | App shape | Menu bar app (menu bar icon, no Dock icon). Stays alive with no windows open; idle cost ≈ zero (no timers, model loaded only on demand). Its menu exposes Try It / Settings / Pause / Quit. |
+| 1 | App shape | Menu bar app (menu bar icon, no Dock icon). Left-click the icon opens the app window; right-click shows capture / last result / Settings / Quit. Stays alive with no windows open; idle cost ≈ zero (no timers, model loaded only on demand). |
 | 2 | Distribution | Personal first → notarized download from GitHub later → Mac App Store long-term. **Not sandboxed** for now (Accessibility API needs it). |
 | 3 | Triggers | Global hotkey **and** Services menu **and** an App Intent (Shortcuts/Spotlight). |
 | 4 | Context | As much as possible: selection, surrounding text of the focused element, app name, window title, page URL, email subject. Trimmed to fit the model's ~4K token window. |
 | 5 | Multiple events | Extract all; show a checklist, all checked. |
 | 6 | Fields | Title, start/end, all-day, location, notes, URL, alerts, recurrence, time zone. |
-| 7 | Missing info | User must fill anything missing (date, start time) before Save is enabled. The model never guesses a date. *End time* with nothing stated defaults to start + default duration but is visibly marked "assumed". |
+| 7 | Missing info | A missing date must be filled in before Save is enabled; the model never guesses one. No stated time → all-day (switchable to timed). No end time → start + default duration, marked as the default length. |
 | 8 | Time zones | Converted to local time. Notes keep "Originally 3:00 PM ET". |
 | 9 | Notes | AI summary, then the original text, then the source (app / URL). |
 | 10 | Calendar | Model suggests one of your calendars by name; full calendar access. |
@@ -55,7 +55,7 @@ All of that is pure and unit-tested.
 
 ## Phases
 
-Status: phases 1–4 done (64 tests passing, incl. 16 on-device model fixtures). Captures open in Try It until the phase 5 panel.
+Status: phases 1–5 done (76 tests passing, incl. 18 on-device model fixtures). Captures open in the floating preview panel.
 
 1. **Scaffold** — XcodeGen project, menu bar app lifecycle, core Swift package.
 2. **Extraction engine** — schema, prompt, resolvers, fallback extractor, tests, Try-It window.

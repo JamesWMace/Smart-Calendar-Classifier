@@ -1,9 +1,8 @@
 import SmartCalendarCore
 import SwiftUI
 
-/// A playground for the extraction engine: paste text (plus optional context), see what the
-/// model extracts and how it resolves. Captures from the hotkey, Services and Shortcuts land
-/// here too (with everything that was read around them) until the preview panel exists.
+/// A playground for the extraction engine: paste text (plus optional context) and see what the
+/// model extracts and how it resolves. Real captures open in the preview panel instead.
 struct TryItView: View {
     @Environment(CalendarService.self) private var calendars
     @AppStorage(SettingsKey.defaultDurationMinutes) private var defaultDurationMinutes = 60
@@ -14,8 +13,6 @@ struct TryItView: View {
     @State private var appName = ""
     @State private var windowTitle = ""
     @State private var urlText = ""
-    @State private var captureMethod: CapturedText.Method?
-    @State private var captureTrace: [String] = []
     @State private var showContext = false
 
     @State private var outcome: ExtractionService.Outcome?
@@ -43,7 +40,6 @@ struct TryItView: View {
         }
         .frame(minWidth: 620, minHeight: 520)
         .onAppear { if availability == .available { FoundationModelsExtractor.prewarm() } }
-        .task(id: CaptureCoordinator.shared.latest?.id) { load(CaptureCoordinator.shared.latest) }
     }
 
     private static let resultsID = "results"
@@ -73,27 +69,11 @@ struct TryItView: View {
                         TextField("Later text in the same document", text: $textAfter, axis: .vertical)
                             .lineLimit(2...4)
                     }
-                    if !captureTrace.isEmpty {
-                        GridRow(alignment: .top) {
-                            Text("Capture log")
-                            Text(captureTrace.joined(separator: " → "))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                    }
                 }
                 .textFieldStyle(.roundedBorder)
                 .padding(.top, 6)
             } label: {
-                HStack {
-                    Text("Context")
-                    if let captureMethod {
-                        Text("captured via \(captureMethod.rawValue)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                Text("Context")
             }
 
             HStack {
@@ -117,21 +97,6 @@ struct TryItView: View {
             results
                 .id(Self.resultsID)
         }
-    }
-
-    /// Fills the form from a capture and extracts straight away.
-    private func load(_ capture: CaptureCoordinator.Capture?) {
-        guard let text = capture?.text else { return }
-        selection = text.selection
-        textBefore = text.before ?? ""
-        textAfter = text.after ?? ""
-        appName = text.appName ?? ""
-        windowTitle = text.windowTitle ?? ""
-        urlText = text.url?.absoluteString ?? ""
-        captureMethod = text.method
-        captureTrace = text.trace
-        showContext = true
-        extract()
     }
 
     private var header: some View {
@@ -241,15 +206,15 @@ private struct CandidateCard: View {
                     .font(.title3.weight(.semibold))
                 Spacer()
             }
-            row("calendar", when)
+            row("calendar", EventFormatting.when(candidate) + (candidate.endIsAssumed && !candidate.isAllDay ? " (assumed)" : ""))
             if let location = candidate.location { row("mappin.and.ellipse", location) }
             if let url = candidate.url { row("link", url.absoluteString) }
-            if let recurrence = candidate.recurrence { row("repeat", describe(recurrence)) }
+            if let recurrence = candidate.recurrence { row("repeat", EventFormatting.describe(recurrence)) }
             if !candidate.alertMinutesBefore.isEmpty {
                 row("bell", candidate.alertMinutesBefore.map { "\($0) min before" }.joined(separator: ", "))
             }
             if !candidate.missingFields.isEmpty {
-                Label("Needs: " + candidate.missingFields.map(label).sorted().joined(separator: ", "),
+                Label("Needs " + EventFormatting.list(candidate.missingFields),
                       systemImage: "exclamationmark.circle.fill")
                     .foregroundStyle(.orange)
                     .font(.callout)
@@ -333,54 +298,5 @@ private struct CandidateCard: View {
 
     private func row(_ symbol: String, _ text: String) -> some View {
         Label(text, systemImage: symbol).font(.callout).textSelection(.enabled)
-    }
-
-    private var when: String {
-        guard let start = candidate.start else {
-            if let hint = candidate.startTimeHint, let hour = hint.hour {
-                return String(format: "Date needed · %d:%02d", hour, hint.minute ?? 0)
-            }
-            return "Date needed"
-        }
-        if candidate.isAllDay {
-            let day = start.formatted(date: .abbreviated, time: .omitted)
-            guard let end = candidate.end, !Calendar.current.isDate(end, inSameDayAs: start) else { return "\(day) · all day" }
-            return "\(day) – \(end.formatted(date: .abbreviated, time: .omitted)) · all day"
-        }
-        if candidate.startTimeMissing {
-            return "\(start.formatted(date: .complete, time: .omitted)) · time needed"
-        }
-        var text = start.formatted(date: .complete, time: .shortened)
-        if let end = candidate.end {
-            let sameDay = Calendar.current.isDate(end, inSameDayAs: start)
-            text += " – " + end.formatted(date: sameDay ? .omitted : .abbreviated, time: .shortened)
-            if candidate.endIsAssumed { text += " (assumed)" }
-        }
-        return text
-    }
-
-    private func label(_ field: EventCandidate.Field) -> String {
-        switch field {
-        case .title: "title"
-        case .date: "date"
-        case .startTime: "start time"
-        }
-    }
-
-    private func describe(_ recurrence: Recurrence) -> String {
-        let unit = switch recurrence.frequency {
-        case .daily: "day"
-        case .weekly: "week"
-        case .monthly: "month"
-        case .yearly: "year"
-        }
-        var text = recurrence.interval == 1 ? "Every \(unit)" : "Every \(recurrence.interval) \(unit)s"
-        if !recurrence.weekdays.isEmpty {
-            let symbols = Calendar.current.shortWeekdaySymbols
-            text += " on " + recurrence.weekdays.map { symbols[$0 - 1] }.joined(separator: ", ")
-        }
-        if let until = recurrence.until { text += " until " + until.formatted(date: .abbreviated, time: .omitted) }
-        if let count = recurrence.occurrenceCount { text += ", \(count) times" }
-        return text
     }
 }

@@ -124,12 +124,12 @@ struct EventResolverTests {
         #expect(TestClock.format(term.end, allDay: true) == "2026-12-12")
     }
 
-    @Test func dayWithoutTimeRequiresTime() {
+    @Test func dayWithoutTimeIsAllDay() {
         let c = resolve(ExtractedEvent(title: "Dentist", startDatePhrase: "the 14th", timing: .unknown))
-        #expect(!c.isAllDay)
+        #expect(c.isAllDay)
         #expect(TestClock.format(c.start, allDay: true) == "2026-10-14")
-        #expect(c.startTimeMissing)
-        #expect(c.missingFields == [.startTime])
+        #expect(TestClock.format(c.end, allDay: true) == "2026-10-14")
+        #expect(c.isComplete)
     }
 
     @Test func timeWithoutDayRequiresDateAndKeepsHint() {
@@ -142,7 +142,8 @@ struct EventResolverTests {
 
     @Test func nothingKnownRequiresEverything() {
         let c = resolve(ExtractedEvent(title: "", timing: .unknown))
-        #expect(c.missingFields == [.title, .date, .startTime])
+        #expect(c.missingFields == [.title, .date])
+        #expect(c.isAllDay)
     }
 
     @Test func calendarSuggestionMustMatchARealCalendar() {
@@ -194,10 +195,10 @@ struct EventResolverTests {
 
     @Test func modelTimeWithoutTimeWordsIsIgnored() {
         let c = resolve(ExtractedEvent(title: "Birthday", startDatePhrase: "Nov 3", timing: .unknown, startTime: TimeSpec(hour: 0)))
-        #expect(c.startTimeMissing)
+        #expect(c.isAllDay)
         // Filler in the time field isn't a time either.
         let filler = resolve(ExtractedEvent(title: "Birthday", startDatePhrase: "Nov 3", timePhrase: "unknown", timing: .unknown, startTime: TimeSpec(hour: 0)))
-        #expect(filler.startTimeMissing)
+        #expect(filler.isAllDay)
         // But a vague time the parser can't read is left to the model.
         let evening = resolve(ExtractedEvent(title: "Dinner", startDatePhrase: "Nov 3", timePhrase: "in the evening", timing: .timed, startTime: TimeSpec(hour: 18)))
         #expect(TestClock.format(evening.start) == "2026-11-03T18:00")

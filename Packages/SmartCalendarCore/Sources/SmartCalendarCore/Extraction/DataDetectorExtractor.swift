@@ -18,11 +18,12 @@ public struct DataDetectorExtractor: Sendable {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = context.timeZone
 
-        var candidate = EventCandidate(title: Self.title(from: text, removing: match), isAllDay: false, start: nil, end: nil)
+        var candidate = EventCandidate(title: Self.title(from: text, removing: match), isAllDay: true, start: nil, end: nil)
 
         if let match, let date = match.date, let range = Range(match.range, in: text) {
             let hasTime = text[range].contains(Self.explicitTime)
             if hasTime {
+                candidate.isAllDay = false
                 candidate.start = date
                 if match.duration > 0 {
                     candidate.end = date.addingTimeInterval(match.duration)
@@ -35,10 +36,8 @@ public struct DataDetectorExtractor: Sendable {
                 }
             } else {
                 candidate.start = calendar.startOfDay(for: date)
-                candidate.startTimeMissing = true
+                candidate.end = candidate.start
             }
-        } else {
-            candidate.startTimeMissing = true
         }
 
         candidate.notes = NotesComposer.compose(

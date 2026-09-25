@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import Synchronization
 
 public enum ModelAvailability: Sendable, Equatable {
     case available
@@ -25,9 +26,25 @@ public enum ModelAvailability: Sendable, Equatable {
 public struct FoundationModelsExtractor: Sendable {
     public init() {}
 
-    /// Starts loading the model so the first extraction after a hotkey press is quicker.
+    /// A session loaded ahead of time, used (once) by the next extraction.
+    private static let warmSession = Mutex<LanguageModelSession?>(nil)
+
+    /// Starts loading the model while the selection is still being read, so the first event
+    /// appears sooner. Cheap to call repeatedly.
     public static func prewarm() {
-        LanguageModelSession(instructions: PromptBuilder.instructions).prewarm()
+        guard case .available = ModelAvailability.current else { return }
+        let session = LanguageModelSession(instructions: PromptBuilder.instructions)
+        session.prewarm()
+        warmSession.withLock { $0 = session }
+    }
+
+    /// A fresh session per request, so nothing from a previous selection leaks into this one.
+    private static func takeSession() -> LanguageModelSession {
+        let warm = warmSession.withLock { session in
+            defer { session = nil }
+            return session
+        }
+        return warm ?? LanguageModelSession(instructions: PromptBuilder.instructions)
     }
 
     /// The model's raw structured output, before any date resolution.
@@ -44,8 +61,7 @@ public struct FoundationModelsExtractor: Sendable {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    // A fresh session per request: nothing from a previous selection leaks into this one.
-                    let session = LanguageModelSession(instructions: PromptBuilder.instructions)
+                    let session = Self.takeSession()
                     let response = session.streamResponse(
                         to: prompt, generating: ExtractionResult.self, options: GenerationOptions(samplingMode: .greedy)
                     )
