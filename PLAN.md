@@ -55,7 +55,7 @@ All of that is pure and unit-tested.
 
 ## Phases
 
-Status: phases 1–3 done (57 tests passing, incl. 15 on-device model fixtures).
+Status: phases 1–4 done (64 tests passing, incl. 16 on-device model fixtures). Captures open in Try It until the phase 5 panel.
 
 1. **Scaffold** — XcodeGen project, menu bar app lifecycle, core Swift package.
 2. **Extraction engine** — schema, prompt, resolvers, fallback extractor, tests, Try-It window.

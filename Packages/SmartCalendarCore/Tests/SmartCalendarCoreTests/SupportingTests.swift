@@ -20,6 +20,15 @@ struct TimeZoneResolverTests {
         #expect(TimeZoneResolver.resolve("+0530")?.secondsFromGMT() == 19_800)
     }
 
+    @Test func findInPhrase() {
+        #expect(TimeZoneResolver.find(in: "3pm ET")?.identifier == "America/New_York")
+        #expect(TimeZoneResolver.find(in: "9:30am Pacific Time")?.identifier == "America/Los_Angeles")
+        #expect(TimeZoneResolver.find(in: "14:00 UTC+2")?.secondsFromGMT() == 7_200)
+        #expect(TimeZoneResolver.find(in: "noon New York time")?.identifier == "America/New_York")
+        #expect(TimeZoneResolver.find(in: "at 3pm") == nil)
+        #expect(TimeZoneResolver.find(in: "10am in LA") == nil) // too ambiguous inside a phrase
+    }
+
     @Test func unknown() {
         #expect(TimeZoneResolver.resolve(nil) == nil)
         #expect(TimeZoneResolver.resolve("  ") == nil)
@@ -114,5 +123,52 @@ struct DataDetectorExtractorTests {
     @Test func noDate() throws {
         let c = try #require(DataDetectorExtractor().extract(from: CaptureContext(selection: "Book club")).first)
         #expect(c.missingFields == [.date, .startTime])
+    }
+}
+
+@Suite("SurroundingText")
+struct SurroundingTextTests {
+    private func range(of needle: String, in text: String) -> NSRange {
+        (text as NSString).range(of: needle)
+    }
+
+    @Test func slicesAroundSelection() throws {
+        let text = "Hi team! Design review next Tuesday 3-5pm. Bring your mocks."
+        let slice = try #require(SurroundingText.slice(text, selection: range(of: "next Tuesday 3-5pm", in: text)))
+        #expect(slice.before == "Hi team! Design review ")
+        #expect(slice.selected == "next Tuesday 3-5pm")
+        #expect(slice.after == ". Bring your mocks.")
+    }
+
+    @Test func trimsToWordBoundaries() throws {
+        let text = "alpha bravo charlie SELECTED delta echo foxtrot"
+        let slice = try #require(SurroundingText.slice(text, selection: range(of: "SELECTED", in: text), maxBefore: 10, maxAfter: 9))
+        #expect(slice.before == "charlie ")   // "o charlie " cut back to a word start
+        #expect(slice.after == " delta")      // " delta ec" cut back to a word end
+    }
+
+    @Test func locateToleratesWhitespace() throws {
+        let page = "Inbox\nLabels\nIMPORTANT DATES: prospective dates.\nAugust 17th 2026 - Module is now available.\nSeptember 28th 2026 - First day to submit.\nAccount activation"
+        let copied = "August 17th 2026 - Module is now available. September 28th 2026 -\n First day to submit."
+        let range = try #require(SurroundingText.locate(copied, in: page))
+        let slice = try #require(SurroundingText.slice(page, selection: range))
+        #expect(slice.before.hasSuffix("IMPORTANT DATES: prospective dates.\n"))
+        #expect(slice.after == "\nAccount activation")
+        #expect(SurroundingText.locate("not on the page", in: page) == nil)
+    }
+
+    @Test func locateLongSelection() throws {
+        let body = (1...60).map { "word\($0)" }.joined(separator: " ")
+        let page = "header " + body + " footer"
+        let range = try #require(SurroundingText.locate(body.replacingOccurrences(of: " ", with: "\n"), in: page))
+        #expect((page as NSString).substring(with: range) == body)
+    }
+
+    @Test func emojiAndOutOfRange() throws {
+        let text = "🎉🎉 Party Saturday 8pm 🎉"
+        let slice = try #require(SurroundingText.slice(text, selection: range(of: "Saturday 8pm", in: text)))
+        #expect(slice.before == "🎉🎉 Party ")
+        #expect(slice.after == " 🎉")
+        #expect(SurroundingText.slice("short", selection: NSRange(location: 3, length: 10)) == nil)
     }
 }

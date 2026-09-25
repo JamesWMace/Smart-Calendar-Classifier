@@ -22,30 +22,43 @@ public struct ExtractionService: Sendable {
         self.options = options
     }
 
-    public func extract(from context: CaptureContext) async -> Outcome {
-        guard case .available = ModelAvailability.current else {
-            if case .unavailable(let reason) = ModelAvailability.current {
-                return fallback(context, reason: reason)
-            }
-            return fallback(context, reason: "Apple Intelligence is unavailable.")
+    /// - Parameter onCandidate: called with each event as soon as it's resolved, before the
+    ///   whole extraction finishes (duplicates are skipped).
+    public func extract(
+        from context: CaptureContext,
+        onCandidate: @escaping @MainActor @Sendable (EventCandidate) -> Void = { _ in }
+    ) async -> Outcome {
+        if case .unavailable(let reason) = ModelAvailability.current {
+            return await fallback(context, reason: reason, onCandidate: onCandidate)
         }
+        let resolver = EventResolver(context: context, options: options)
+        var raw: [ExtractedEvent] = []
+        var candidates: [EventCandidate] = []
         do {
-            let raw = try await FoundationModelsExtractor().extractRaw(from: context)
-            let resolver = EventResolver(context: context, options: options)
-            return Outcome(candidates: resolver.resolveAll(raw), engine: .appleIntelligence, rawEvents: raw)
-        } catch let error as LanguageModelSession.GenerationError {
-            return fallback(context, reason: Self.describe(error))
+            for try await event in FoundationModelsExtractor().stream(from: context) {
+                raw.append(event)
+                let candidate = resolver.resolve(event)
+                guard !EventResolver.isDuplicate(candidate, of: candidates) else { continue }
+                candidates.append(candidate)
+                await onCandidate(candidate)
+            }
+            return Outcome(candidates: candidates, engine: .appleIntelligence, rawEvents: raw)
         } catch {
-            return fallback(context, reason: error.localizedDescription)
+            // Keep whatever already arrived; only fall back when nothing did.
+            if !candidates.isEmpty {
+                return Outcome(candidates: candidates, engine: .appleIntelligence, rawEvents: raw)
+            }
+            let reason = (error as? LanguageModelSession.GenerationError).map(Self.describe) ?? error.localizedDescription
+            return await fallback(context, reason: reason, onCandidate: onCandidate)
         }
     }
 
-    private func fallback(_ context: CaptureContext, reason: String) -> Outcome {
-        Outcome(
-            candidates: DataDetectorExtractor().extract(from: context, options: options),
-            engine: .dataDetector(reason: reason),
-            rawEvents: []
-        )
+    private func fallback(
+        _ context: CaptureContext, reason: String, onCandidate: @MainActor @Sendable (EventCandidate) -> Void
+    ) async -> Outcome {
+        let candidates = DataDetectorExtractor().extract(from: context, options: options)
+        for candidate in candidates { await onCandidate(candidate) }
+        return Outcome(candidates: candidates, engine: .dataDetector(reason: reason), rawEvents: [])
     }
 
     private static func describe(_ error: LanguageModelSession.GenerationError) -> String {

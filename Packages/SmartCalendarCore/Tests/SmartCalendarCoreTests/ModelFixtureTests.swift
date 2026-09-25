@@ -88,7 +88,7 @@ struct ModelFixtureTests {
             if let url = e.urlContains { #expect(c.url?.absoluteString.contains(url) == true, comment) }
             if let zone = e.sourceTimeZone { #expect(c.sourceTimeZone?.identifier == zone, comment) }
             if let calendar = e.calendar { #expect(c.suggestedCalendarName == calendar, comment) }
-            if let recurrence = e.recurrence { #expect(c.recurrence.map { "\($0.frequency)" } == recurrence, comment) }
+            if let recurrence = e.recurrence { #expect((c.recurrence.map { "\($0.frequency)" } ?? "none") == recurrence, comment) }
         }
     }
 }

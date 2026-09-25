@@ -33,7 +33,7 @@ public struct ExtractedEvent: Sendable {
     @Guide(description: "The exact words that give the time of day, including any range. Examples: '3-5pm', '9:30am–12pm', 'at noon', '11:59pm'. Empty if no time is stated.")
     public var timePhrase: String
 
-    @Guide(description: "allDay for holidays, birthdays, deadlines with no time of day, and multi-day trips or conferences. timed when a time of day is stated. unknown when the event normally has a time but none is stated.")
+    @Guide(description: "timed when a time of day is stated. allDay when none is stated and the item is a deadline, due date, 'last day to', something that opens, closes, starts or becomes available, a holiday, birthday, or a multi-day trip or conference. unknown only for appointments and meetings with no stated time, such as 'dentist on the 14th'.")
     public var timing: Timing
 
     @Guide(description: "The time of day the event starts. Omit if no time is stated.")

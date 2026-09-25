@@ -32,5 +32,26 @@
 	<string>Smart Calendar Classifier adds the events you highlight to your calendars, suggests which calendar to use, and warns you about conflicts.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 James Mace</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Add Event to Calendar</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>addToCalendar</string>
+			<key>NSPortName</key>
+			<string>Smart Calendar Classifier</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSStringPboardType</string>
+				<string>public.plain-text</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

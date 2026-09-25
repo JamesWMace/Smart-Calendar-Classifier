@@ -75,6 +75,19 @@
     ]
   },
   {
+    "name": "announcement-date-list",
+    "selection": "August 17th 2026 - Authorized Signers Module is now available.\nSeptember 28th 2026 - First day to submit requisitions.\nOctober 31st 2026 - LAST day to submit requisitions for summer purchases.\nJanuary 4th 2027 - Org Budget Request Form Opens\nJune 4th 2027 - Deadline for Org Requisitions (the general deadline is typically the first Friday of June for each academic year.)",
+    "appName": "Google Chrome",
+    "windowTitle": "A Message from Student Government Finance to Student Orgs - Mail",
+    "expected": [
+      { "titleContains": ["signers", "module"], "isAllDay": true, "startDay": "2026-08-17", "recurrence": "none" },
+      { "titleContains": ["requisition"], "isAllDay": true, "startDay": "2026-09-28", "recurrence": "none" },
+      { "titleContains": ["requisition", "last day", "deadline", "due"], "isAllDay": true, "startDay": "2026-10-31", "recurrence": "none" },
+      { "titleContains": ["budget"], "isAllDay": true, "startDay": "2027-01-04", "recurrence": "none" },
+      { "titleContains": ["requisition", "deadline"], "isAllDay": true, "startDay": "2027-06-04", "recurrence": "none" }
+    ]
+  },
+  {
     "name": "not-an-event",
     "selection": "Thanks so much for your help yesterday, it really made a difference.",
     "expected": []

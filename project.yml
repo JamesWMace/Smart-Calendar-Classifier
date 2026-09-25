@@ -31,6 +31,15 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         NSHumanReadableCopyright: © 2026 James Mace
         NSCalendarsFullAccessUsageDescription: Smart Calendar Classifier adds the events you highlight to your calendars, suggests which calendar to use, and warns you about conflicts.
+        NSServices:
+          - NSMenuItem:
+              default: Add Event to Calendar
+            NSMessage: addToCalendar
+            NSPortName: Smart Calendar Classifier
+            NSSendTypes:
+              - NSStringPboardType
+              - public.plain-text
+            NSRequiredContext: {}
         NSAppleEventsUsageDescription: Smart Calendar Classifier reads the current page address from your browser so events can link back to where you found them.
     entitlements:
       path: SmartCalendarClassifier/SmartCalendarClassifier.entitlements

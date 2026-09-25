@@ -36,6 +36,24 @@ public enum TimeZoneResolver {
         return TimeZone(abbreviation: key)
     }
 
+    /// Finds a time zone written inside a longer phrase, like the "ET" in "3pm ET". Only
+    /// the known abbreviations and UTC offsets count, so ordinary words never match.
+    public static func find(in phrase: String) -> TimeZone? {
+        let upper = phrase.uppercased()
+        if let offset = upper.firstMatch(of: /(?:UTC|GMT)\s*[+-]\s*\d{1,2}(?::?\d{2})?/),
+           let zone = resolve(String(offset.output)) {
+            return zone
+        }
+        let words = upper.split { !$0.isLetter }.map(String.init)
+        for (index, word) in words.enumerated() {
+            if index + 1 < words.count, let identifier = aliases["\(word) \(words[index + 1])"] {
+                return TimeZone(identifier: identifier)
+            }
+            if word.count >= 2, word != "LA", let identifier = aliases[word] { return TimeZone(identifier: identifier) }
+        }
+        return nil
+    }
+
     /// "UTC+2", "GMT-05:30", "+0530", "UTC +5"
     private static func parseOffset(_ key: String) -> Int? {
         let pattern = /^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$/

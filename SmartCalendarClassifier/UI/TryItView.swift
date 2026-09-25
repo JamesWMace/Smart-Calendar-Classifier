@@ -2,45 +2,98 @@ import SmartCalendarCore
 import SwiftUI
 
 /// A playground for the extraction engine: paste text (plus optional context), see what the
-/// model extracts and how it resolves. Stands in for the capture layer until phase 4.
+/// model extracts and how it resolves. Captures from the hotkey, Services and Shortcuts land
+/// here too (with everything that was read around them) until the preview panel exists.
 struct TryItView: View {
     @Environment(CalendarService.self) private var calendars
     @AppStorage(SettingsKey.defaultDurationMinutes) private var defaultDurationMinutes = 60
 
     @State private var selection = "Hi team, let's do the design review next Tuesday from 3-5pm in the Orion conference room."
     @State private var textBefore = ""
+    @State private var textAfter = ""
     @State private var appName = ""
     @State private var windowTitle = ""
+    @State private var urlText = ""
+    @State private var captureMethod: CapturedText.Method?
+    @State private var captureTrace: [String] = []
     @State private var showContext = false
 
     @State private var outcome: ExtractionService.Outcome?
+    /// Filled in as each event streams in, before `outcome` (the finished run) exists.
+    @State private var candidates: [EventCandidate] = []
+    /// Identifies the current run, so a superseded one stops adding cards.
+    @State private var extractionID = UUID()
     @State private var elapsed: Duration?
     @State private var isExtracting = false
 
     private let availability = ModelAvailability.current
 
     var body: some View {
+        // One scrolling page, so the event cards can use the whole window once the text and
+        // context have been scrolled past.
+        ScrollViewReader { scroller in
+            ScrollView {
+                form
+                    .padding(16)
+            }
+            .onChange(of: candidates.isEmpty) { _, isEmpty in
+                // Bring the first card into view; later ones append below without jumping.
+                if !isEmpty { withAnimation { scroller.scrollTo(Self.resultsID, anchor: .top) } }
+            }
+        }
+        .frame(minWidth: 620, minHeight: 520)
+        .onAppear { if availability == .available { FoundationModelsExtractor.prewarm() } }
+        .task(id: CaptureCoordinator.shared.latest?.id) { load(CaptureCoordinator.shared.latest) }
+    }
+
+    private static let resultsID = "results"
+
+    private var form: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             TextEditor(text: $selection)
                 .font(.body)
-                .frame(minHeight: 90)
+                .frame(height: 150)
                 .scrollContentBackground(.hidden)
                 .padding(6)
                 .background(.background.secondary, in: .rect(cornerRadius: 8))
 
-            DisclosureGroup("Context (optional)", isExpanded: $showContext) {
+            DisclosureGroup(isExpanded: $showContext) {
                 Grid(alignment: .leading, verticalSpacing: 6) {
                     GridRow { Text("App"); TextField("e.g. Mail", text: $appName) }
                     GridRow { Text("Window title"); TextField("e.g. Re: Design review", text: $windowTitle) }
+                    GridRow { Text("Page address"); TextField("https://…", text: $urlText) }
                     GridRow(alignment: .top) {
                         Text("Text before")
                         TextField("Earlier text in the same document", text: $textBefore, axis: .vertical)
                             .lineLimit(2...4)
                     }
+                    GridRow(alignment: .top) {
+                        Text("Text after")
+                        TextField("Later text in the same document", text: $textAfter, axis: .vertical)
+                            .lineLimit(2...4)
+                    }
+                    if !captureTrace.isEmpty {
+                        GridRow(alignment: .top) {
+                            Text("Capture log")
+                            Text(captureTrace.joined(separator: " → "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
                 }
                 .textFieldStyle(.roundedBorder)
                 .padding(.top, 6)
+            } label: {
+                HStack {
+                    Text("Context")
+                    if let captureMethod {
+                        Text("captured via \(captureMethod.rawValue)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             HStack {
@@ -53,15 +106,32 @@ struct TryItView: View {
 
                 if isExtracting { ProgressView().controlSize(.small) }
                 Spacer()
-                if let outcome, let elapsed { engineBadge(outcome.engine, elapsed: elapsed) }
+                if isExtracting, !candidates.isEmpty {
+                    Text("\(candidates.count) found so far…").font(.caption).foregroundStyle(.secondary)
+                } else if let outcome, let elapsed {
+                    engineBadge(outcome.engine, elapsed: elapsed)
+                }
             }
 
             Divider()
             results
+                .id(Self.resultsID)
         }
-        .padding(16)
-        .frame(minWidth: 620, minHeight: 520)
-        .onAppear { if availability == .available { FoundationModelsExtractor.prewarm() } }
+    }
+
+    /// Fills the form from a capture and extracts straight away.
+    private func load(_ capture: CaptureCoordinator.Capture?) {
+        guard let text = capture?.text else { return }
+        selection = text.selection
+        textBefore = text.before ?? ""
+        textAfter = text.after ?? ""
+        appName = text.appName ?? ""
+        windowTitle = text.windowTitle ?? ""
+        urlText = text.url?.absoluteString ?? ""
+        captureMethod = text.method
+        captureTrace = text.trace
+        showContext = true
+        extract()
     }
 
     private var header: some View {
@@ -99,18 +169,23 @@ struct TryItView: View {
 
     @ViewBuilder
     private var results: some View {
-        if let outcome {
-            if outcome.candidates.isEmpty {
-                ContentUnavailableView("No events found", systemImage: "calendar.badge.exclamationmark")
-            } else {
-                ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(outcome.candidates) { CandidateCard(candidate: $0) }
+        if !candidates.isEmpty {
+            LazyVStack(spacing: 10) {
+                ForEach(candidates) { CandidateCard(candidate: $0) }
+                if isExtracting {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Looking for more events…").foregroundStyle(.secondary)
                     }
+                    .padding(.vertical, 8)
                 }
             }
+        } else if isExtracting {
+            ContentUnavailableView("Finding events…", systemImage: "sparkles").frame(minHeight: 180)
+        } else if outcome != nil {
+            ContentUnavailableView("No events found", systemImage: "calendar.badge.exclamationmark").frame(minHeight: 180)
         } else {
-            ContentUnavailableView("Press ⌘↩ to extract", systemImage: "calendar.badge.plus")
+            ContentUnavailableView("Press ⌘↩ to extract", systemImage: "calendar.badge.plus").frame(minHeight: 180)
         }
     }
 
@@ -118,18 +193,28 @@ struct TryItView: View {
         let context = CaptureContext(
             selection: selection,
             textBefore: textBefore.isEmpty ? nil : textBefore,
+            textAfter: textAfter.isEmpty ? nil : textAfter,
             appName: appName.isEmpty ? nil : appName,
             windowTitle: windowTitle.isEmpty ? nil : windowTitle,
+            url: URL(string: urlText),
             calendarNames: calendars.calendars.map(\.title).reduce(into: []) { names, title in
                 if !names.contains(title) { names.append(title) }
             }
         )
         let service = ExtractionService(options: ResolutionOptions(defaultDurationMinutes: defaultDurationMinutes))
+        let id = UUID()
+        extractionID = id
         isExtracting = true
+        outcome = nil
+        candidates = []
+        let current = $extractionID, cards = $candidates
         Task {
             let clock = ContinuousClock()
             let start = clock.now
-            let result = await service.extract(from: context)
+            let result = await service.extract(from: context) { candidate in
+                if current.wrappedValue == id { withAnimation { cards.wrappedValue.append(candidate) } }
+            }
+            guard extractionID == id else { return }
             elapsed = clock.now - start
             outcome = result
             isExtracting = false

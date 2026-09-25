@@ -30,18 +30,20 @@ public struct EventResolver: Sendable {
     /// Resolves every event, dropping exact duplicates (the model occasionally repeats one).
     public func resolveAll(_ events: [ExtractedEvent]) -> [EventCandidate] {
         var seen: [EventCandidate] = []
-        for candidate in events.map(resolve) {
-            let isDuplicate = seen.contains {
-                $0.title.caseInsensitiveCompare(candidate.title) == .orderedSame
-                    && $0.start == candidate.start && $0.end == candidate.end
-            }
-            if !isDuplicate { seen.append(candidate) }
+        for candidate in events.map(resolve) where !Self.isDuplicate(candidate, of: seen) {
+            seen.append(candidate)
         }
         return seen
     }
 
+    public static func isDuplicate(_ candidate: EventCandidate, of others: [EventCandidate]) -> Bool {
+        others.contains {
+            $0.title.caseInsensitiveCompare(candidate.title) == .orderedSame && $0.start == candidate.start && $0.end == candidate.end
+        }
+    }
+
     public func resolve(_ event: ExtractedEvent) -> EventCandidate {
-        let statedZone = TimeZoneResolver.resolve(event.timeZone)
+        let statedZone = TimeZoneResolver.resolve(event.timeZone) ?? TimeZoneResolver.find(in: event.timePhrase)
         let eventZone = statedZone ?? context.timeZone
         let (startDay, endDay) = days(for: event)
         let (startTime, endTime) = times(for: event)
@@ -57,7 +59,7 @@ public struct EventResolver: Sendable {
             end: nil,
             location: location,
             url: groundedURL(event.url) ?? locationURL,
-            recurrence: recurrence(from: event.recurrence),
+            recurrence: event.recurrence.flatMap { Self.textSupports($0, for: event, in: context.selection) ? recurrence(from: $0) : nil },
             alertMinutesBefore: event.alertMinutesBefore.filter { (0...40_320).contains($0) },
             suggestedCalendarName: matchCalendar(event.suggestedCalendar, title: event.title)
         )
@@ -151,8 +153,10 @@ public struct EventResolver: Sendable {
     ) -> Date {
         if let endTime {
             var end = instant(on: endDay ?? startDay, at: endTime, in: zone)
-            if end <= start && endDay == nil {
-                end = dates.calendar.date(byAdding: .day, value: 1, to: end)! // "10pm–2am"
+            // On the same day, an end equal to the start is the model repeating the start
+            // time rather than an end; an earlier one runs past midnight ("10pm–2am").
+            if end < start && endDay == nil {
+                end = dates.calendar.date(byAdding: .day, value: 1, to: end)!
             }
             if end > start { return end }
         }
@@ -190,6 +194,31 @@ public struct EventResolver: Sendable {
     }
 
     // MARK: - Grounding
+
+    /// The model sometimes invents a recurrence ("every day" for a list of deadlines), so one
+    /// is only kept when the event's own line says it repeats at that frequency.
+    static func textSupports(_ recurrence: RecurrenceSpec, for event: ExtractedEvent, in selection: String) -> Bool {
+        let text = line(of: selection, containing: event.startDatePhrase).lowercased()
+        return switch recurrence.frequency {
+        case .daily:
+            text.contains(/\b(daily|nightly|every\s+(day|night|morning|afternoon|evening|weekday))\b|\beach\s+day\b/)
+        case .weekly:
+            text.contains(/\b(weekly|biweekly|fortnightly|each\s+week|every\s+(other\s+)?(week|mon|tue|wed|thu|fri|sat|sun)[a-z]*)\b|\b(mon|tues|wednes|thurs|fri|satur|sun)days\b/)
+        case .monthly:
+            text.contains(/\b(monthly|each\s+month|every\s+(other\s+)?month)\b/)
+        case .yearly:
+            text.contains(/\b(yearly|annually|annual|each\s+year|every\s+year)\b/)
+        }
+    }
+
+    /// The line of a multi-line selection that holds `phrase`, or the whole selection.
+    static func line(of selection: String, containing phrase: String) -> String {
+        let needle = phrase.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased()
+        guard !needle.isEmpty else { return selection }
+        return selection.split(whereSeparator: \.isNewline)
+            .first { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased().contains(needle) }
+            .map(String.init) ?? selection
+    }
 
     /// Drops locations the model made up ("Lunch spot") by requiring them to appear in the
     /// text. A link offered as the location is returned as a URL instead.
