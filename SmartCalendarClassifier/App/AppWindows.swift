@@ -2,7 +2,7 @@ import AppKit
 import SmartCalendarCore
 import SwiftUI
 
-/// The app's two ordinary windows, opened from the menu bar icon. Managed in AppKit (rather
+/// The app's ordinary windows (main, Settings, setup guide), opened from the menu bar icon. Managed in AppKit (rather
 /// than as SwiftUI scenes) so they can be opened from anywhere and always come to the front,
 /// even though a menu bar app is never the active app when its icon is clicked.
 @MainActor
@@ -10,6 +10,7 @@ final class AppWindows {
     private let calendars: CalendarService
     private var tryIt: NSWindow?
     private var settings: NSWindow?
+    private var onboarding: NSWindow?
 
     init(calendars: CalendarService) {
         self.calendars = calendars
@@ -36,6 +37,18 @@ final class AppWindows {
             sizesToContent: true
         )
         settings = window
+        bringForward(window)
+    }
+
+    func showOnboarding() {
+        let window = onboarding ?? makeWindow(
+            title: "Welcome",
+            content: OnboardingView { [weak self] in self?.onboarding?.close() },
+            style: [.titled, .closable],
+            autosaveName: "OnboardingWindow",
+            sizesToContent: true
+        )
+        onboarding = window
         bringForward(window)
     }
 

@@ -71,6 +71,8 @@ final class PreviewModel {
             guard let self, !Task.isCancelled else { return }
             engine = outcome.engine
             if phase == .extracting { phase = .ready }
+            // Trust mode (decision #12): add right away unless something needs the user.
+            if UserDefaults.standard.bool(forKey: SettingsKey.trustMode), canSave { save() }
         }
     }
 

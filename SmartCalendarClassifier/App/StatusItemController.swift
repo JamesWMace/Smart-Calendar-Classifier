@@ -34,7 +34,8 @@ final class StatusItemController: NSObject {
         let coordinator = CaptureCoordinator.shared
         let menu = NSMenu()
         // The app that was frontmost before the click still owns the selection.
-        menu.addItem(action("Add Selected Text to Calendar", key: "c", modifiers: [.control, .option]) {
+        let shortcut = ShortcutStore.shared.shortcut
+        menu.addItem(action("Add Selected Text to Calendar", key: shortcut.key, modifiers: shortcut.menuModifiers) {
             coordinator.captureFrontmostSelection()
         })
         if let problem = coordinator.lastProblem {
@@ -51,6 +52,7 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(action("Open Smart Calendar Classifier") { [windows] in windows.showTryIt() })
         menu.addItem(action("Settings…", key: ",") { [windows] in windows.showSettings() })
+        menu.addItem(action("Setup Guide…") { [windows] in windows.showOnboarding() })
         menu.addItem(.separator())
         menu.addItem(action("Quit Smart Calendar Classifier", key: "q") { NSApp.terminate(nil) })
 
