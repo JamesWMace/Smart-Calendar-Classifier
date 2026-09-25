@@ -40,6 +40,19 @@ struct EventResolverTests {
         #expect(c.sourceTimeZone == nil)
     }
 
+    /// Regression: "3pm ET" with no separate zone field, and an end time equal to the start,
+    /// became 3 PM Pacific lasting 24 hours.
+    @Test func zoneInTimePhraseAndEndEqualToStart() {
+        let c = resolve(ExtractedEvent(
+            title: "Intro to SwiftUI", startDatePhrase: "Thursday Oct 1", timePhrase: "3pm ET", timing: .timed,
+            startTime: TimeSpec(hour: 15), endTime: TimeSpec(hour: 15)
+        ))
+        #expect(TestClock.format(c.start) == "2026-10-01T12:00")
+        #expect(TestClock.format(c.end) == "2026-10-01T13:00")
+        #expect(c.endIsAssumed)
+        #expect(c.sourceTimeZone?.identifier == "America/New_York")
+    }
+
     @Test func defaultDurationIsMarkedAssumed() {
         let c = resolve(ExtractedEvent(
             title: "Lunch", startDatePhrase: "tomorrow", timePhrase: "at noon", timing: .timed
@@ -219,11 +232,43 @@ struct EventResolverTests {
         #expect(made.url == nil)
     }
 
+    /// Regression: a list of dates came back as "every day", first with no repeat words at
+    /// all, then because another line said "for each academic year".
+    @Test func recurrenceMustBeStatedOnTheEventsLine() {
+        let list = TestClock.context("""
+            August 17th 2026 - Module is now available.
+            June 4th 2027 - Deadline (typically the first Friday of June for each academic year.)
+            Standup every Monday at 9am
+            """)
+        let event = { (phrase: String, frequency: Frequency) in
+            ExtractedEvent(title: "x", startDatePhrase: phrase, timing: .allDay, recurrence: RecurrenceSpec(frequency: frequency))
+        }
+        #expect(resolve(event("August 17th 2026", .daily), context: list).recurrence == nil)
+        #expect(resolve(event("June 4th 2027", .daily), context: list).recurrence == nil)
+        #expect(resolve(event("every Monday", .weekly), context: list).recurrence?.frequency == .weekly)
+        #expect(resolve(event("every Monday", .daily), context: list).recurrence == nil)
+    }
+
+    @Test(arguments: [
+        ("Office hours every Tuesday and Thursday", Frequency.weekly, true),
+        ("Standup on Mondays and Thursdays", .weekly, true),
+        ("biweekly sync", .weekly, true),
+        ("Everyone meets Tuesday", .weekly, false),
+        ("Take meds daily at 8", .daily, true),
+        ("Rent due on the 1st of every month", .monthly, true),
+        ("Annual review in March", .yearly, true),
+        ("for each academic year", .daily, false),
+    ])
+    func repetitionWording(_ text: String, _ frequency: Frequency, _ supported: Bool) {
+        let event = ExtractedEvent(title: "x", timing: .unknown)
+        #expect(EventResolver.textSupports(RecurrenceSpec(frequency: frequency), for: event, in: text) == supported)
+    }
+
     @Test func recurrence() {
         let c = resolve(ExtractedEvent(
             title: "Office Hours", startDatePhrase: "every Tuesday", timePhrase: "2-3pm", timing: .timed,
             recurrence: RecurrenceSpec(frequency: .weekly, weekdays: [.tuesday, .thursday], untilPhrase: "Dec 4")
-        ))
+        ), context: TestClock.context("Office hours every Tuesday and Thursday 2-3pm until Dec 4"))
         #expect(c.recurrence?.frequency == .weekly)
         #expect(c.recurrence?.weekdays == [3, 5])
         #expect(TestClock.format(c.recurrence?.until, allDay: true) == "2026-12-04")

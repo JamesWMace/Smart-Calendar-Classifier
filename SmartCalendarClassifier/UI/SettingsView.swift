@@ -50,8 +50,11 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Section {
-                Text("Hotkey and trust mode arrive with the capture phase.")
+            Section("Capture") {
+                AccessibilityAccessView()
+                LabeledContent("Keyboard shortcut", value: AppDelegate.hotKeyDisplay)
+                Text("Select text in any app and press \(AppDelegate.hotKeyDisplay). You can also right-click selected text → Services → Add Event to Calendar, or use “Add Event from Text” in Shortcuts.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
@@ -62,6 +65,25 @@ struct SettingsView: View {
 
     static func durationLabel(_ minutes: Int) -> String {
         Duration.seconds(minutes * 60).formatted(.units(allowed: [.days, .hours, .minutes], width: .wide))
+    }
+}
+
+/// Accessibility status, needed to read selections and their surroundings in other apps.
+struct AccessibilityAccessView: View {
+    private let accessibility = AccessibilityPermission.shared
+
+    var body: some View {
+        if accessibility.isTrusted {
+            Label("Accessibility access granted", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        } else {
+            HStack {
+                Label("Accessibility access is needed to read selected text.", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Button("Open System Settings") { accessibility.openSettings() }
+            }
+            .onAppear { accessibility.refresh() }
+        }
     }
 }
 
