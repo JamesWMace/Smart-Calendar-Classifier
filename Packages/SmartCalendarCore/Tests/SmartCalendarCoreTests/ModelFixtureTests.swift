@@ -16,6 +16,8 @@ struct ModelFixtureTests {
         var textAfter: String?
         var appName: String?
         var windowTitle: String?
+        /// Defaults to Work, Personal, School.
+        var calendars: [String]?
         var expected: [Expectation]
 
         var testDescription: String { name }
@@ -35,6 +37,7 @@ struct ModelFixtureTests {
         var urlContains: String?
         var sourceTimeZone: String?
         var recurrence: String?
+        var calendar: String?
     }
 
     static let cases: [Case] = {
@@ -52,7 +55,7 @@ struct ModelFixtureTests {
             windowTitle: fixture.windowTitle,
             referenceDate: TestClock.friday,
             timeZone: TestClock.pacific,
-            calendarNames: ["Work", "Personal", "School"]
+            calendarNames: fixture.calendars ?? ["Work", "Personal", "School"]
         )
         let raw = try await FoundationModelsExtractor().extractRaw(from: context)
         let resolver = EventResolver(context: context)
@@ -84,6 +87,7 @@ struct ModelFixtureTests {
             }
             if let url = e.urlContains { #expect(c.url?.absoluteString.contains(url) == true, comment) }
             if let zone = e.sourceTimeZone { #expect(c.sourceTimeZone?.identifier == zone, comment) }
+            if let calendar = e.calendar { #expect(c.suggestedCalendarName == calendar, comment) }
             if let recurrence = e.recurrence { #expect(c.recurrence.map { "\($0.frequency)" } == recurrence, comment) }
         }
     }

@@ -90,6 +90,27 @@ struct EventResolverTests {
         #expect(TestClock.format(c.end, allDay: true) == "2027-01-03")
     }
 
+    /// Regression: a time in the end-date field produced Sep 29 2026 3pm – Sep 3 2027 5pm.
+    @Test func timeInEndDateFieldIsIgnored() {
+        let c = resolve(ExtractedEvent(
+            title: "Design Review", startDatePhrase: "next Tuesday", endDatePhrase: "3-5pm", timePhrase: "3-5pm", timing: .timed
+        ))
+        #expect(TestClock.format(c.start) == "2026-09-29T15:00")
+        #expect(TestClock.format(c.end) == "2026-09-29T17:00")
+    }
+
+    @Test func implausibleSpansAreDropped() {
+        // An end month/day before the start only rolls to next year for short ranges.
+        let rolled = resolve(ExtractedEvent(title: "x", startDatePhrase: "Oct 20", endDatePhrase: "Oct 3", timing: .allDay))
+        #expect(TestClock.format(rolled.end, allDay: true) == "2026-10-20")
+        // Timed events can't run for weeks.
+        let timed = resolve(ExtractedEvent(title: "x", startDatePhrase: "Oct 1", endDatePhrase: "Oct 20", timePhrase: "9am-5pm", timing: .timed))
+        #expect(TestClock.format(timed.end) == "2026-10-01T17:00")
+        // A term-long all-day range is fine.
+        let term = resolve(ExtractedEvent(title: "Fall Quarter", startDatePhrase: "Sep 24", endDatePhrase: "Dec 12", timing: .allDay))
+        #expect(TestClock.format(term.end, allDay: true) == "2026-12-12")
+    }
+
     @Test func dayWithoutTimeRequiresTime() {
         let c = resolve(ExtractedEvent(title: "Dentist", startDatePhrase: "the 14th", timing: .unknown))
         #expect(!c.isAllDay)
@@ -120,6 +141,23 @@ struct EventResolverTests {
         #expect(resolve(event("Gym"), context: context).suggestedCalendarName == nil)
     }
 
+    /// Regression: "Office Hours" went to the "Class" calendar the model suggested.
+    @Test func calendarNamedInTextBeatsModelSuggestion() {
+        let context = TestClock.context(
+            "Office hours every Tuesday and Thursday 2-3pm", calendars: ["Class", "Office Hours", "Work", "Home"]
+        )
+        let event = { (title: String, suggestion: String?) in
+            ExtractedEvent(title: title, startDatePhrase: "Tuesday", timing: .timed, suggestedCalendar: suggestion)
+        }
+        #expect(resolve(event("Office Hours", "Class"), context: context).suggestedCalendarName == "Office Hours")
+        #expect(resolve(event("TA Session", "Class"), context: context).suggestedCalendarName == "Office Hours")
+        // Single-word names only count in the title, and only as whole words.
+        let chat = TestClock.context("let's work on it at home", calendars: ["Class", "Work", "Home"])
+        #expect(resolve(event("Project sync", "Class"), context: chat).suggestedCalendarName == "Class")
+        #expect(resolve(event("Homework 3 Due", nil), context: chat).suggestedCalendarName == nil)
+        #expect(resolve(event("Work Offsite", "Class"), context: chat).suggestedCalendarName == "Work")
+    }
+
     @Test func urls() {
         #expect(EventResolver.url(from: "zoom.us/j/123")?.absoluteString == "https://zoom.us/j/123")
         #expect(EventResolver.url(from: "https://meet.google.com/abc")?.absoluteString == "https://meet.google.com/abc")
@@ -144,6 +182,12 @@ struct EventResolverTests {
     @Test func modelTimeWithoutTimeWordsIsIgnored() {
         let c = resolve(ExtractedEvent(title: "Birthday", startDatePhrase: "Nov 3", timing: .unknown, startTime: TimeSpec(hour: 0)))
         #expect(c.startTimeMissing)
+        // Filler in the time field isn't a time either.
+        let filler = resolve(ExtractedEvent(title: "Birthday", startDatePhrase: "Nov 3", timePhrase: "unknown", timing: .unknown, startTime: TimeSpec(hour: 0)))
+        #expect(filler.startTimeMissing)
+        // But a vague time the parser can't read is left to the model.
+        let evening = resolve(ExtractedEvent(title: "Dinner", startDatePhrase: "Nov 3", timePhrase: "in the evening", timing: .timed, startTime: TimeSpec(hour: 18)))
+        #expect(TestClock.format(evening.start) == "2026-11-03T18:00")
     }
 
     @Test func duplicatesAreDropped() {
