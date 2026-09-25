@@ -40,7 +40,7 @@
     "name": "day-without-time",
     "selection": "Dentist appointment on the 14th",
     "expected": [
-      { "titleContains": ["dentist"], "startDay": "2026-10-14", "startTimeMissing": true }
+      { "titleContains": ["dentist"], "startDay": "2026-10-14", "isAllDay": true }
     ]
   },
   {

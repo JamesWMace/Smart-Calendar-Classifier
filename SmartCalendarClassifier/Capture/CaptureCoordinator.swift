@@ -1,23 +1,18 @@
 import AppKit
+import SmartCalendarCore
 
 /// Gathers selections from every entry point (hotkey, menu, Services, Shortcuts) and hands
-/// the latest one to the UI. Until the preview panel exists (phase 5) that's the Try It window.
+/// each one to the preview panel.
 @MainActor
 @Observable
 final class CaptureCoordinator {
     static let shared = CaptureCoordinator()
 
-    struct Capture: Identifiable {
-        let id = UUID()
-        let text: CapturedText
-    }
-
-    private(set) var latest: Capture?
     private(set) var isCapturing = false
     /// Why the last attempt produced nothing, for the menu.
     private(set) var lastProblem: String?
-    /// Incremented whenever the UI should come forward to show `latest`.
-    private(set) var presentationRequests = 0
+    /// Shows a capture to the user; set by the app delegate to open the preview panel.
+    @ObservationIgnored var present: ((CapturedText) -> Void)?
 
     /// The most recent app other than this one to become active. macOS activates a Services
     /// provider before calling it, so by then the source app is no longer frontmost.
@@ -51,6 +46,8 @@ final class CaptureCoordinator {
         }
 
         isCapturing = true
+        // Load the model while the selection is read; it takes several seconds from cold.
+        FoundationModelsExtractor.prewarm()
         let pid = app.processIdentifier, bundleID = app.bundleIdentifier
         Task {
             var (captured, trace) = await Task.detached { SelectionReader.readWithAccessibility(pid: pid, bundleID: bundleID) }.value
@@ -69,6 +66,7 @@ final class CaptureCoordinator {
                 return
             }
             captured.appName = app.localizedName
+            captured.appBundleID = app.bundleIdentifier
             deliver(captured)
         }
     }
@@ -76,8 +74,9 @@ final class CaptureCoordinator {
     /// Services entry point: the text arrives on a pasteboard, but the source app still has
     /// it selected, so try to add its surroundings too.
     func receiveFromService(_ text: String) {
+        FoundationModelsExtractor.prewarm()
         let app = NSWorkspace.shared.frontmostApplication.flatMap { $0.processIdentifier == ownPID ? nil : $0 } ?? lastExternalApp
-        var captured = CapturedText(selection: text, appName: app?.localizedName, method: .service)
+        var captured = CapturedText(selection: text, appName: app?.localizedName, appBundleID: app?.bundleIdentifier, method: .service)
         guard let app, AccessibilityPermission.shared.isTrusted else {
             deliver(captured)
             return
@@ -105,9 +104,8 @@ final class CaptureCoordinator {
     }
 
     func deliver(_ text: CapturedText) {
-        latest = Capture(text: text)
         lastProblem = nil
-        presentationRequests += 1
+        present?(text)
     }
 
     private func fail(_ message: String) {

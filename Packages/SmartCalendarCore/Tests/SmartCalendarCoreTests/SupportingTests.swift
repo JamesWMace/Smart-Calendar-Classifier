@@ -113,16 +113,16 @@ struct DataDetectorExtractorTests {
         #expect(c.endIsAssumed)
     }
 
-    @Test func dateWithoutTimeRequiresTime() throws {
+    @Test func dateWithoutTimeIsAllDay() throws {
         let c = try #require(DataDetectorExtractor().extract(from: CaptureContext(selection: "Dentist appointment on October 14")).first)
         #expect(c.title == "Dentist appointment")
-        #expect(c.startTimeMissing)
-        #expect(c.missingFields == [.startTime])
+        #expect(c.isAllDay)
+        #expect(c.isComplete)
     }
 
     @Test func noDate() throws {
         let c = try #require(DataDetectorExtractor().extract(from: CaptureContext(selection: "Book club")).first)
-        #expect(c.missingFields == [.date, .startTime])
+        #expect(c.missingFields == [.date])
     }
 }
 

@@ -17,6 +17,7 @@ struct CapturedText: Sendable {
     var before: String?
     var after: String?
     var appName: String?
+    var appBundleID: String?
     var windowTitle: String?
     var url: URL?
     var method: Method
