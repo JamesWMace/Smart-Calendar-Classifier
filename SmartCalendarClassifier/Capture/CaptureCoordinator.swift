@@ -35,8 +35,9 @@ final class CaptureCoordinator {
     /// Hotkey / menu entry point: read whatever is selected in the frontmost app.
     func captureFrontmostSelection() {
         guard !isCapturing else { return }
-        guard let app = NSWorkspace.shared.frontmostApplication, app.processIdentifier != ownPID else {
-            fail("Select some text in another app first.")
+        // Our own windows count too, e.g. the practice text in the setup guide.
+        guard let app = NSWorkspace.shared.frontmostApplication else {
+            fail("Select some text first.")
             return
         }
         guard AccessibilityPermission.shared.isTrusted else {
