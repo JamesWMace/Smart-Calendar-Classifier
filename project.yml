@@ -1,0 +1,58 @@
+name: SmartCalendarClassifier
+options:
+  bundleIdPrefix: com.jamesmace
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+packages:
+  SmartCalendarCore:
+    path: Packages/SmartCalendarCore
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    DEAD_CODE_STRIPPING: YES
+targets:
+  SmartCalendarClassifier:
+    type: application
+    platform: macOS
+    sources:
+      - path: SmartCalendarClassifier
+    dependencies:
+      - package: SmartCalendarCore
+    info:
+      path: SmartCalendarClassifier/Info.plist
+      properties:
+        CFBundleDisplayName: Smart Calendar Classifier
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.productivity
+        LSUIElement: true
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: © 2026 James Mace
+        NSCalendarsFullAccessUsageDescription: Smart Calendar Classifier adds the events you highlight to your calendars, suggests which calendar to use, and warns you about conflicts.
+        NSAppleEventsUsageDescription: Smart Calendar Classifier reads the current page address from your browser so events can link back to where you found them.
+    entitlements:
+      path: SmartCalendarClassifier/SmartCalendarClassifier.entitlements
+      properties:
+        com.apple.security.personal-information.calendars: true
+        com.apple.security.automation.apple-events: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jamesmace.SmartCalendarClassifier
+        PRODUCT_NAME: Smart Calendar Classifier
+        PRODUCT_MODULE_NAME: SmartCalendarClassifier
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        DEVELOPMENT_TEAM: KADXNL8W7B
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+schemes:
+  SmartCalendarClassifier:
+    build:
+      targets:
+        SmartCalendarClassifier: all
+    run:
+      config: Debug

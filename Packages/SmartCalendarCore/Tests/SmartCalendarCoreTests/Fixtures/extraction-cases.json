@@ -1,0 +1,120 @@
+[
+  {
+    "name": "email-design-review",
+    "selection": "Hi team, let's do the design review next Tuesday from 3-5pm in the Orion conference room.",
+    "appName": "Mail",
+    "windowTitle": "Design review for onboarding flow",
+    "expected": [
+      { "titleContains": ["review"], "start": "2026-09-29T15:00", "end": "2026-09-29T17:00", "locationContains": "Orion" }
+    ]
+  },
+  {
+    "name": "syllabus-multiple-exams",
+    "selection": "Midterm 1: Thursday, Oct 15 in class\nMidterm 2: Thursday, Nov 12 in class\nFinal Exam: Dec 10, 8:00-11:00am, Bourns A265",
+    "appName": "Preview",
+    "windowTitle": "CS153_Syllabus_Fall2026.pdf",
+    "expected": [
+      { "titleContains": ["midterm"], "startDay": "2026-10-15" },
+      { "titleContains": ["midterm"], "startDay": "2026-11-12" },
+      { "titleContains": ["final"], "start": "2026-12-10T08:00", "end": "2026-12-10T11:00", "locationContains": "Bourns" }
+    ]
+  },
+  {
+    "name": "webinar-eastern-time",
+    "selection": "Join us for Intro to SwiftUI, Thursday Oct 1 at 3pm ET. Register at https://example.com/swiftui",
+    "appName": "Safari",
+    "expected": [
+      { "titleContains": ["swiftui"], "start": "2026-10-01T12:00", "sourceTimeZone": "America/New_York", "urlContains": "example.com" }
+    ]
+  },
+  {
+    "name": "slack-lunch-tomorrow",
+    "selection": "want to grab lunch tomorrow at noon?",
+    "appName": "Slack",
+    "windowTitle": "Priya Patel (DM)",
+    "expected": [
+      { "titleContains": ["lunch"], "start": "2026-09-26T12:00" }
+    ]
+  },
+  {
+    "name": "day-without-time",
+    "selection": "Dentist appointment on the 14th",
+    "expected": [
+      { "titleContains": ["dentist"], "startDay": "2026-10-14", "startTimeMissing": true }
+    ]
+  },
+  {
+    "name": "conference-multi-day",
+    "selection": "SwiftConf 2026 runs October 20–22 in Seattle, WA.",
+    "expected": [
+      { "titleContains": ["swiftconf"], "isAllDay": true, "startDay": "2026-10-20", "endDay": "2026-10-22", "locationContains": "Seattle" }
+    ]
+  },
+  {
+    "name": "homework-deadline-with-context-title",
+    "selection": "Homework 3 is due Friday at 11:59pm on Gradescope.",
+    "appName": "Canvas",
+    "windowTitle": "CS 153: Operating Systems — Announcements",
+    "expected": [
+      { "titleContains": ["homework", "hw"], "start": "2026-09-25T23:59" }
+    ]
+  },
+  {
+    "name": "recurring-office-hours",
+    "selection": "Office hours: every Tuesday and Thursday, 2–3pm, WCH 110",
+    "expected": [
+      { "titleContains": ["office hours"], "start": "2026-09-29T14:00", "end": "2026-09-29T15:00", "recurrence": "weekly", "locationContains": "WCH" }
+    ]
+  },
+  {
+    "name": "not-an-event",
+    "selection": "Thanks so much for your help yesterday, it really made a difference.",
+    "expected": []
+  },
+  {
+    "name": "time-without-day",
+    "selection": "Can you call me at 4:30?",
+    "expected": [
+      { "titleContains": ["call"], "dateMissing": true }
+    ]
+  },
+  {
+    "name": "birthday-all-day",
+    "selection": "Reminder: Mom's birthday is November 3!",
+    "expected": [
+      { "titleContains": ["birthday"], "isAllDay": true, "startDay": "2026-11-03" }
+    ]
+  },
+  {
+    "name": "reference-resolved-from-context",
+    "selection": "Works for me, see you then!",
+    "textBefore": "Can we meet Monday at 9am at Blue Bottle to go over the Q4 budget?",
+    "appName": "Messages",
+    "expected": [
+      { "titleContains": ["budget", "meet"], "start": "2026-09-28T09:00", "locationContains": "Blue Bottle" }
+    ]
+  },
+  {
+    "name": "timed-across-two-days",
+    "selection": "The hackathon kicks off Saturday at 10am and wraps up Sunday at 4pm.",
+    "expected": [
+      { "titleContains": ["hackathon"], "start": "2026-09-26T10:00", "end": "2026-09-27T16:00" }
+    ]
+  },
+  {
+    "name": "numeric-date-with-year",
+    "selection": "New Student Orientation — 10/05/2026, 9:30am–12pm, Student Success Center",
+    "expected": [
+      { "titleContains": ["orientation"], "start": "2026-10-05T09:30", "end": "2026-10-05T12:00", "locationContains": "Student Success" }
+    ]
+  },
+  {
+    "name": "flight-confirmation",
+    "selection": "United flight UA 1234 departs SFO on Oct 9 at 7:15 AM and arrives at JFK at 3:52 PM.",
+    "appName": "Mail",
+    "windowTitle": "Your trip confirmation",
+    "expected": [
+      { "titleContains": ["1234", "flight"], "start": "2026-10-09T07:15" }
+    ]
+  }
+]
