@@ -1,8 +1,10 @@
+import SmartCalendarCore
 import SwiftUI
 
 @main
 struct SmartCalendarClassifierApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var calendars = CalendarService()
 
     var body: some Scene {
         MenuBarExtra("Smart Calendar Classifier", systemImage: "calendar.badge.plus") {
@@ -12,12 +14,14 @@ struct SmartCalendarClassifierApp: App {
 
         Window("Try It", id: AppDelegate.tryItWindowID) {
             TryItView()
+                .environment(calendars)
         }
         .defaultSize(width: 760, height: 620)
         .defaultLaunchBehavior(.suppressed)
 
         Settings {
             SettingsView()
+                .environment(calendars)
         }
     }
 }

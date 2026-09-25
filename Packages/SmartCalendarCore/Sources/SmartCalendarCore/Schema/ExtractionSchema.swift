@@ -27,7 +27,7 @@ public struct ExtractedEvent: Sendable {
     @Guide(description: "The exact words from the text that say which day the event starts, without the time. Examples: 'next Tuesday', 'tomorrow', 'Oct 15', '10/05/2026', 'the 14th', 'October 20–22'. Empty if the text names no day.")
     public var startDatePhrase: String
 
-    @Guide(description: "The exact words that say which day the event ends, only when it ends on a different day than it starts. Examples: 'Sunday', 'Oct 22'. Empty otherwise.")
+    @Guide(description: "The exact words that say which DAY the event ends, only when it ends on a different day than it starts. Day words only, never a time: for '3-5pm' this is empty. Examples: 'Sunday', 'Oct 22'. Empty otherwise.")
     public var endDatePhrase: String
 
     @Guide(description: "The exact words that give the time of day, including any range. Examples: '3-5pm', '9:30am–12pm', 'at noon', '11:59pm'. Empty if no time is stated.")

@@ -67,6 +67,14 @@
     ]
   },
   {
+    "name": "calendar-named-in-text",
+    "selection": "Office hours every Tuesday and Thursday 2–3pm until Dec 4",
+    "calendars": ["Class", "Office Hours", "Work", "Personal"],
+    "expected": [
+      { "titleContains": ["office hours"], "start": "2026-09-29T14:00", "end": "2026-09-29T15:00", "recurrence": "weekly", "calendar": "Office Hours" }
+    ]
+  },
+  {
     "name": "not-an-event",
     "selection": "Thanks so much for your help yesterday, it really made a difference.",
     "expected": []

@@ -17,6 +17,14 @@ public enum TimePhraseParser {
         return range(in: text) ?? single(in: text)
     }
 
+    /// Whether the phrase talks about a time of day at all ("7", "noon", "this evening",
+    /// "after lunch") as opposed to filler like "unknown" or "TBD".
+    public static func mentionsTime(_ phrase: String) -> Bool {
+        let text = phrase.lowercased()
+        return text.contains(/\d/)
+            || text.contains(/\b(noon|midnight|morning|afternoon|evening|night|tonight|lunch|dinner|breakfast|brunch)\b/)
+    }
+
     static func normalize(_ phrase: String) -> String {
         phrase.lowercased()
             .replacingOccurrences(of: "a.m.", with: "am")

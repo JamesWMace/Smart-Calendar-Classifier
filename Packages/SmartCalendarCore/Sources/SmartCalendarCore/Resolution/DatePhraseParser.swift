@@ -132,8 +132,10 @@ public enum DatePhraseParser {
     }
 
     /// "22" — only meaningful when a month is already known, as in the end of "Oct 20-22".
+    /// A number that continues like a time ("3-5pm", "3:00", "3 to 5", "3pm") is not a day.
     private static func bareDay(_ text: String, _ defaultMonth: Int?) -> (DateSpec, Range<String.Index>)? {
-        guard let defaultMonth, let m = text.prefixMatch(of: /(\d{1,2})\b(?!:|\s*[ap]\.?m)/), let d = Int(m.1),
+        let pattern = /(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*(?:-|:|[ap]\.?m\b|to\b|until\b|till\b))/
+        guard let defaultMonth, let m = text.prefixMatch(of: pattern), let d = Int(m.1),
               (1...31).contains(d) else { return nil }
         return (DateSpec(kind: .absolute, month: defaultMonth, day: d), m.range)
     }

@@ -4,6 +4,7 @@ import SwiftUI
 /// A playground for the extraction engine: paste text (plus optional context), see what the
 /// model extracts and how it resolves. Stands in for the capture layer until phase 4.
 struct TryItView: View {
+    @Environment(CalendarService.self) private var calendars
     @AppStorage(SettingsKey.defaultDurationMinutes) private var defaultDurationMinutes = 60
 
     @State private var selection = "Hi team, let's do the design review next Tuesday from 3-5pm in the Orion conference room."
@@ -64,17 +65,21 @@ struct TryItView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text("Paste or type some text").font(.headline)
             Spacer()
-            switch availability {
-            case .available:
-                Label("Apple Intelligence ready", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green).font(.callout)
-            case .unavailable(let reason):
-                Label(reason, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange).font(.callout)
+            VStack(alignment: .trailing, spacing: 4) {
+                switch availability {
+                case .available:
+                    Label("Apple Intelligence ready", systemImage: "checkmark.seal.fill")
+                        .foregroundStyle(.green)
+                case .unavailable(let reason):
+                    Label(reason, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+                CalendarAccessView()
             }
+            .font(.callout)
         }
     }
 
@@ -114,7 +119,10 @@ struct TryItView: View {
             selection: selection,
             textBefore: textBefore.isEmpty ? nil : textBefore,
             appName: appName.isEmpty ? nil : appName,
-            windowTitle: windowTitle.isEmpty ? nil : windowTitle
+            windowTitle: windowTitle.isEmpty ? nil : windowTitle,
+            calendarNames: calendars.calendars.map(\.title).reduce(into: []) { names, title in
+                if !names.contains(title) { names.append(title) }
+            }
         )
         let service = ExtractionService(options: ResolutionOptions(defaultDurationMinutes: defaultDurationMinutes))
         isExtracting = true
@@ -131,7 +139,15 @@ struct TryItView: View {
 
 private struct CandidateCard: View {
     let candidate: EventCandidate
+    @Environment(CalendarService.self) private var calendars
+    @AppStorage(SettingsKey.defaultCalendarID) private var preferredCalendarID = ""
+    @AppStorage(SettingsKey.defaultAlertMinutes) private var defaultAlertMinutes = -1
+
     @State private var showNotes = false
+    @State private var calendarID = ""
+    @State private var conflicts: [ExistingEvent] = []
+    @State private var saved: SavedEvent?
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -139,10 +155,6 @@ private struct CandidateCard: View {
                 Text(candidate.title.isEmpty ? "Untitled" : candidate.title)
                     .font(.title3.weight(.semibold))
                 Spacer()
-                if let calendar = candidate.suggestedCalendarName {
-                    Text(calendar).font(.caption).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(.tint.opacity(0.15), in: .capsule)
-                }
             }
             row("calendar", when)
             if let location = candidate.location { row("mappin.and.ellipse", location) }
@@ -157,14 +169,81 @@ private struct CandidateCard: View {
                     .foregroundStyle(.orange)
                     .font(.callout)
             }
+            ForEach(conflicts) { conflict in
+                Label("Overlaps “\(conflict.title)” \(conflict.start.formatted(date: .omitted, time: .shortened))–\(conflict.end.formatted(date: .omitted, time: .shortened))",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.callout)
+            }
             DisclosureGroup("Notes", isExpanded: $showNotes) {
                 Text(candidate.notes).font(.callout).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .font(.callout)
+            Divider()
+            saveBar
         }
         .padding(12)
         .background(.background.secondary, in: .rect(cornerRadius: 10))
+        .task(id: calendars.calendars) { refreshCalendarState() }
+    }
+
+    @ViewBuilder
+    private var saveBar: some View {
+        HStack {
+            if let saved {
+                Label("Added to \(saved.calendarTitle)", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Spacer()
+                if let url = saved.calendarAppURL {
+                    Button("Open in Calendar") { NSWorkspace.shared.open(url) }
+                }
+                Button("Undo") { undo(saved) }
+            } else {
+                Picker("Calendar", selection: $calendarID) {
+                    CalendarPickerItems(calendars: calendars.calendars)
+                }
+                .labelsHidden()
+                .fixedSize()
+                .disabled(!calendars.hasFullAccess)
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red).font(.caption).lineLimit(2)
+                }
+                Spacer()
+                Button("Add to Calendar", systemImage: "calendar.badge.plus", action: save)
+                    .disabled(!calendars.hasFullAccess || !candidate.isComplete || calendarID.isEmpty)
+                    .help(candidate.isComplete ? "" : "Fill in the missing details first (editing arrives with the preview panel).")
+            }
+        }
+        .font(.callout)
+    }
+
+    private func refreshCalendarState() {
+        if calendarID.isEmpty || !calendars.calendars.contains(where: { $0.id == calendarID }) {
+            calendarID = calendars.calendarID(
+                suggestedName: candidate.suggestedCalendarName,
+                preferredID: preferredCalendarID.isEmpty ? nil : preferredCalendarID
+            ) ?? ""
+        }
+        conflicts = calendars.conflicts(for: candidate)
+    }
+
+    private func save() {
+        do {
+            saved = try calendars.save(candidate, calendarID: calendarID, defaultAlertMinutes: defaultAlertMinutes.alertMinutesSetting)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func undo(_ event: SavedEvent) {
+        do {
+            try calendars.remove(event)
+            saved = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func row(_ symbol: String, _ text: String) -> some View {

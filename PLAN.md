@@ -32,8 +32,7 @@ the event lands in Apple Calendar.
 ```
 SmartCalendarClassifier.app  (SwiftUI + AppKit, thin)
   ├─ Capture/     hotkey, Accessibility reader, Services provider, App Intent
-  ├─ UI/          preview panel, Try-It window, settings, onboarding
-  └─ Calendar/    EventKit writer, conflict check, calendar list
+  └─ UI/          preview panel, Try-It window, settings, onboarding
         │
         ▼
 Packages/SmartCalendarCore  (pure Swift, unit-tested with `swift test`)
@@ -41,7 +40,8 @@ Packages/SmartCalendarCore  (pure Swift, unit-tested with `swift test`)
   ├─ Extraction/  PromptBuilder, FoundationModelsExtractor, DataDetectorExtractor
   ├─ Schema/      @Generable ExtractionResult (what the model fills in)
   ├─ Resolution/  DateResolver, TimeZoneResolver — deterministic date math
-  └─ Model/       EventCandidate (resolved, ready for UI / EventKit), NotesComposer
+  ├─ Model/       EventCandidate (resolved, ready for UI / EventKit), NotesComposer
+  └─ Calendar/    CalendarService (permission, calendars, save, undo), EventMapper, ConflictDetector
 ```
 
 **Key idea:** the ~3B on-device model is good at *understanding* ("this is a midterm, it's next
@@ -55,7 +55,7 @@ All of that is pure and unit-tested.
 
 ## Phases
 
-Status: phases 1–2 done (48 tests passing, incl. 15 on-device model fixtures).
+Status: phases 1–3 done (57 tests passing, incl. 15 on-device model fixtures).
 
 1. **Scaffold** — XcodeGen project, menu bar app lifecycle, core Swift package.
 2. **Extraction engine** — schema, prompt, resolvers, fallback extractor, tests, Try-It window.

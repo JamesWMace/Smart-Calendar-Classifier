@@ -54,6 +54,13 @@ struct DatePhraseParserTests {
     @Test func bareDayNeedsMonth() {
         #expect(DatePhraseParser.parse("22") == nil)
         #expect(DatePhraseParser.parse("22", defaultMonth: 10)?.start == DateSpec(kind: .absolute, month: 10, day: 22))
+        #expect(DatePhraseParser.parse("22nd", defaultMonth: 10)?.start == DateSpec(kind: .absolute, month: 10, day: 22))
+    }
+
+    /// Regression: the model once put "3-5pm" in the end-date field, which became "Sep 3".
+    @Test(arguments: ["3-5pm", "3 - 5 pm", "3pm", "3:00", "3 to 5", "5 p.m."])
+    func timesAreNotBareDays(_ phrase: String) {
+        #expect(DatePhraseParser.parse(phrase, defaultMonth: 9) == nil)
     }
 
     @Test func nothing() {

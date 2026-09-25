@@ -59,7 +59,7 @@ public struct EventResolver: Sendable {
             url: groundedURL(event.url) ?? locationURL,
             recurrence: recurrence(from: event.recurrence),
             alertMinutesBefore: event.alertMinutesBefore.filter { (0...40_320).contains($0) },
-            suggestedCalendarName: matchCalendar(event.suggestedCalendar)
+            suggestedCalendarName: matchCalendar(event.suggestedCalendar, title: event.title)
         )
 
         if isAllDay {
@@ -105,19 +105,31 @@ public struct EventResolver: Sendable {
         let endSpec = DatePhraseParser.parse(event.endDatePhrase, defaultMonth: startMonth)?.start ?? parsed?.end
         guard let endSpec, var endDay = dates.day(for: endSpec) else { return (startDay, nil) }
 
-        // "Dec 28 – Jan 3" or "Friday – Monday": an end that lands before the start means the next one.
+        // "Dec 28 – Jan 3" or "Friday – Monday": an end that lands before the start means the
+        // next one — but only when that makes a short range, not a year-long event.
+        var rolled = false
         if endDay < startDay {
             switch endSpec.kind {
             case .absolute where endSpec.year == nil:
                 endDay = calendar.date(byAdding: endSpec.month == nil ? .month : .year, value: 1, to: endDay)!
+                rolled = true
             case .weekday:
                 endDay = calendar.date(byAdding: .day, value: 7, to: endDay)!
             default:
                 break
             }
         }
-        return (startDay, endDay >= startDay ? endDay : nil)
+        // A misread end (e.g. a time taken for a day) must never stretch the event absurdly.
+        let span = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
+        let maxSpan = rolled ? Self.maxRolledSpanDays : event.timing == .allDay ? Self.maxAllDaySpanDays : Self.maxTimedSpanDays
+        return (startDay, (0...maxSpan).contains(span) ? endDay : nil)
     }
+
+    /// Longest believable events, in days: a timed event (a hackathon, an overnight trip), an
+    /// all-day range (a term, a long trip), and a range whose end had to be moved to next year.
+    static let maxTimedSpanDays = 7
+    static let maxAllDaySpanDays = 180
+    static let maxRolledSpanDays = 62
 
     /// The parsed phrase wins unless it is ambiguous ("at 7"), in which case the model's
     /// reading — which saw the context — is used. With no time words at all, the model's
@@ -125,8 +137,7 @@ public struct EventResolver: Sendable {
     private func times(for event: ExtractedEvent) -> (start: TimeSpec?, end: TimeSpec?) {
         let parsed = TimePhraseParser.parse(event.timePhrase) ?? TimePhraseParser.parse(event.startDatePhrase)
         guard let parsed else {
-            let hasTimeWords = !event.timePhrase.trimmingCharacters(in: .whitespaces).isEmpty
-            return hasTimeWords ? (event.startTime, event.endTime) : (nil, nil)
+            return TimePhraseParser.mentionsTime(event.timePhrase) ? (event.startTime, event.endTime) : (nil, nil)
         }
         if parsed.isAmbiguous, let modelStart = event.startTime {
             return (modelStart, event.endTime ?? parsed.end)
@@ -198,9 +209,32 @@ public struct EventResolver: Sendable {
         return Self.url(from: text)
     }
 
-    private func matchCalendar(_ name: String?) -> String? {
-        guard let name = name.nonEmpty else { return nil }
-        return context.calendarNames.first { $0.caseInsensitiveCompare(name) == .orderedSame }
+    /// A calendar named outright beats the model's semantic guess: "Office Hours" goes to a
+    /// calendar called "Office Hours", not to "Class". Any name counts in the title; only
+    /// multi-word names count in the selection, so "let's work on it" doesn't mean "Work".
+    /// The longest (most specific) match wins.
+    private func matchCalendar(_ suggestion: String?, title: String) -> String? {
+        let titleWords = Self.words(title)
+        let selectionWords = Self.words(context.selection)
+        let named = context.calendarNames
+            .sorted { $0.count > $1.count }
+            .first { name in
+                let nameWords = Self.words(name)
+                return Self.contains(titleWords, nameWords) || (nameWords.count > 1 && Self.contains(selectionWords, nameWords))
+            }
+        if let named { return named }
+        guard let suggestion = suggestion.nonEmpty else { return nil }
+        return context.calendarNames.first { $0.caseInsensitiveCompare(suggestion) == .orderedSame }
+    }
+
+    static func words(_ text: String) -> [Substring] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }
+    }
+
+    /// Whether `needle` appears in `haystack` as consecutive whole words.
+    static func contains(_ haystack: [Substring], _ needle: [Substring]) -> Bool {
+        guard !needle.isEmpty, needle.count <= haystack.count else { return false }
+        return (0...(haystack.count - needle.count)).contains { haystack[$0..<($0 + needle.count)].elementsEqual(needle) }
     }
 
     static func url(from text: String?) -> URL? {
