@@ -65,7 +65,14 @@ struct PreviewView: View {
                 }
             }
             Spacer()
-            if model.phase == .extracting { ProgressView().controlSize(.small) }
+            if model.phase == .extracting {
+                ProgressView().controlSize(.small)
+            } else if model.isSummarizing {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Writing notes…").font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -361,6 +368,16 @@ private struct EventEditor: View {
                     set: { item.candidate.location = $0.isEmpty ? nil : $0 }
                 ))
                 .textFieldStyle(.roundedBorder)
+            }
+            if !candidate.notes.isEmpty {
+                GridRow(alignment: .top) {
+                    label("Notes")
+                    Text(candidate.notes)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             GridRow {
                 label("Calendar")

@@ -40,6 +40,12 @@ final class PreviewModel {
     /// How long reading took ("first event 2.1 s, all 3.4 s"), for the details popover.
     private(set) var timing: String?
     @ObservationIgnored private var firstEventAfter: Duration?
+    /// True while optional notes summaries are being written.
+    private(set) var isSummarizing = false
+    @ObservationIgnored private var context: CaptureContext?
+    @ObservationIgnored private var summaryTask: Task<Void, Never>?
+    /// Saved events by candidate, so late summaries can reach events already added.
+    @ObservationIgnored private var savedByCandidate: [UUID: SavedEvent] = [:]
     #if DEBUG
     @ObservationIgnored private(set) var debugPrompt = ""
     #endif
@@ -86,6 +92,7 @@ final class PreviewModel {
                 if !names.contains(title) { names.append(title) }
             }
         )
+        self.context = context
         #if DEBUG
         debugPrompt = PromptBuilder.prompt(for: context)
         #endif
@@ -107,12 +114,43 @@ final class PreviewModel {
             if phase == .extracting { phase = .ready }
             // Trust mode (decision #12): add right away unless something needs the user.
             if UserDefaults.standard.bool(forKey: SettingsKey.trustMode), canSave { save() }
+            if outcome.engine == .appleIntelligence, UserDefaults.standard.bool(forKey: SettingsKey.summarizeNotes) {
+                summarize()
+            }
         }
     }
 
     func cancel() {
         task?.cancel()
         if phase == .extracting { phase = .ready }
+        // Summaries still matter for events already added; otherwise there's nowhere for them to go.
+        if case .saved = phase {} else { summaryTask?.cancel() }
+    }
+
+    /// Writes each event's notes summary, one at a time, after the events are shown.
+    private func summarize() {
+        guard let context else { return }
+        let targets = items.map(\.candidate)
+        isSummarizing = true
+        summaryTask = Task(priority: .userInitiated) { [weak self] in
+            let writer = SummaryWriter()
+            for candidate in targets {
+                guard !Task.isCancelled else { break }
+                guard let summary = try? await writer.summary(for: candidate, context: context) else { continue }
+                self?.applySummary(summary, to: candidate.id, context: context)
+            }
+            self?.isSummarizing = false
+        }
+    }
+
+    private func applySummary(_ summary: String, to id: UUID, context: CaptureContext) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let candidate = items[index].candidate
+        let notes = NotesComposer.compose(
+            summary: summary, context: context, sourceTimeZone: candidate.sourceTimeZone, start: candidate.start
+        )
+        items[index].candidate.notes = notes
+        if let saved = savedByCandidate[id] { try? calendars.updateNotes(of: saved, to: notes) }
     }
 
     /// A blank event when the model found nothing but the user still wants one.
@@ -127,7 +165,9 @@ final class PreviewModel {
         var saved: [SavedEvent] = []
         do {
             for item in included {
-                saved.append(try calendars.save(item.candidate, calendarID: item.calendarID, defaultAlertMinutes: alerts))
+                let event = try calendars.save(item.candidate, calendarID: item.calendarID, defaultAlertMinutes: alerts)
+                saved.append(event)
+                savedByCandidate[item.id] = event
             }
             errorMessage = nil
             history.record(saved, source: capture.appName)
@@ -135,6 +175,7 @@ final class PreviewModel {
         } catch {
             // Don't leave half a batch behind.
             for event in saved { try? calendars.remove(event) }
+            savedByCandidate = [:]
             errorMessage = error.localizedDescription
         }
     }
@@ -143,6 +184,7 @@ final class PreviewModel {
         guard case .saved(let saved) = phase else { return }
         for event in saved { try? calendars.remove(event) }
         history.markRemoved(saved)
+        savedByCandidate = [:]
         phase = .ready
     }
 
