@@ -33,7 +33,7 @@ whenever the app misreads something.
 
 ## Release
 ```bash
-scripts/release.sh           # builds, verifies the signature, and zips the app into build/release/
+scripts/release.sh           # builds, verifies the signature, and zips the app into build/release.noindex/
 ```
 It prints the `gh release create` command to publish the zip. The icon is drawn by
 `scripts/make-icon.swift`; run `scripts/make-icon.sh` after changing it.

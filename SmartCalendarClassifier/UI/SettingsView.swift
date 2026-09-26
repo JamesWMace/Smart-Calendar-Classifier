@@ -84,8 +84,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 500)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minWidth: 480, minHeight: 360)
     }
 
     static func durationLabel(_ minutes: Int) -> String {

@@ -34,9 +34,11 @@ final class AppWindows {
         let window = settings ?? makeWindow(
             title: "Settings",
             content: SettingsView(),
-            style: [.titled, .closable],
+            // A fixed size with the form scrolling inside: sizing the window to a scrolling
+            // form made AppKit loop through layout and crash.
+            style: [.titled, .closable, .resizable],
             autosaveName: "SettingsWindow",
-            sizesToContent: true
+            size: NSSize(width: 540, height: 680)
         )
         settings = window
         bringForward(window)
