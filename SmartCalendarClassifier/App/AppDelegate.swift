@@ -25,7 +25,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugSnapshot.install(
             closing: { [weak self] in self?.previewPanel.debugPanel },
             trace: { [weak self] in self?.previewPanel.debugTrace ?? [] },
-            close: { [weak self] in self?.previewPanel.close() }
+            close: { [weak self] in self?.previewPanel.close() },
+            open: { [weak self] name in
+                switch name {
+                case "settings": self?.windows.showSettings()
+                case "onboarding": self?.windows.showOnboarding()
+                default: self?.windows.showMain()
+                }
+            }
         )
         #endif
         ShortcutStore.shared.onChange = { [weak self] in self?.registerHotKey() }

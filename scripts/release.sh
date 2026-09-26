@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 xcodegen generate >/dev/null
 version=$(awk '/MARKETING_VERSION:/ { print $2 }' project.yml)
-out=build/release
+out=build/release.noindex  # ".noindex": keeps Spotlight and the Apps list from showing build copies
 rm -rf "$out"
 
 xcodebuild -project SmartCalendarClassifier.xcodeproj -scheme SmartCalendarClassifier -configuration Release \

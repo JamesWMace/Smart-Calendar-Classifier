@@ -4,7 +4,7 @@ import AppKit
 /// shows the menu with capture, Settings and Quit. SwiftUI's `MenuBarExtra` can't tell the
 /// two clicks apart, so this is a plain `NSStatusItem`.
 @MainActor
-final class StatusItemController: NSObject {
+final class StatusItemController: NSObject, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let windows: AppWindows
     private let preview: PreviewPanelController
@@ -56,9 +56,15 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(action("Quit Smart Calendar Classifier", key: "q") { NSApp.terminate(nil) })
 
-        // Attaching the menu only for this click keeps left clicks free to open the window.
+        // The menu is attached only for this click, so left clicks stay free to open the
+        // window. It's detached once it closes: detaching right after `performClick` closed it
+        // immediately on recent macOS, where the click no longer waits for the menu.
+        menu.delegate = self
         item.menu = menu
         item.button?.performClick(nil)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
         item.menu = nil
     }
 

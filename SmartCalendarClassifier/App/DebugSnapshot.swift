@@ -9,8 +9,15 @@ import AppKit
 enum DebugSnapshot {
     static func install(
         closing panel: @escaping @MainActor () -> NSPanel?, trace: @escaping @MainActor () -> [String],
-        close: @escaping @MainActor () -> Void
+        close: @escaping @MainActor () -> Void, open: @escaping @MainActor (String) -> Void
     ) {
+        // "SmartCalendarClassifier.debugOpen" with "main", "settings" or "onboarding" opens that window.
+        DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("SmartCalendarClassifier.debugOpen"), object: nil, queue: .main
+        ) { notification in
+            let name = notification.object as? String ?? ""
+            MainActor.assumeIsolated { open(name) }
+        }
         DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("SmartCalendarClassifier.debugSnapshot"), object: nil, queue: .main
         ) { notification in
