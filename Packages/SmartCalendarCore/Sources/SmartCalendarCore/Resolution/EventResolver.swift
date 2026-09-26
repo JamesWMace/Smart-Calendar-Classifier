@@ -17,6 +17,8 @@ public struct EventResolver: Sendable {
     private let dates: DateResolver
     /// Everything the user could see; locations and links must appear in it.
     private let sourceText: String
+    /// Its words and numbers, for checking that quoted date and time phrases are real.
+    private let sourceWords: Set<Substring>
 
     public init(context: CaptureContext, options: ResolutionOptions = .init()) {
         self.context = context
@@ -25,6 +27,7 @@ public struct EventResolver: Sendable {
         self.sourceText = [context.windowTitle, context.textBefore, context.selection, context.textAfter]
             .compactMap { $0 }
             .joined(separator: "\n")
+        self.sourceWords = Set(Self.words(inPhrase: sourceText))
     }
 
     /// Resolves every event, dropping exact duplicates (the model occasionally repeats one).
@@ -42,15 +45,22 @@ public struct EventResolver: Sendable {
         }
     }
 
-    public func resolve(_ event: ExtractedEvent) -> EventCandidate {
-        let statedZone = TimeZoneResolver.resolve(event.timeZone) ?? TimeZoneResolver.find(in: event.timePhrase)
+    public func resolve(_ extracted: ExtractedEvent) -> EventCandidate {
+        // The model occasionally quotes an example from the schema ("3-5pm", "next Tuesday")
+        // instead of the text. Phrases whose words aren't in the text are dropped.
+        var event = extracted
+        event.startDatePhrase = grounded(event.startDatePhrase)
+        event.endDatePhrase = grounded(event.endDatePhrase)
+        event.timePhrase = grounded(event.timePhrase)
+        if let until = event.recurrence?.untilPhrase { event.recurrence?.untilPhrase = grounded(until) }
+        // The event's own line of the selection: where its duration, link and reminder live.
+        let line = Self.line(of: context.selection, containing: event.startDatePhrase)
+        let statedZone = TimeZoneResolver.find(in: event.timePhrase)
         let eventZone = statedZone ?? context.timeZone
-        let (startDay, endDay) = days(for: event)
-        let (startTime, endTime) = times(for: event)
-
-        let isMultiDay = startDay != nil && endDay != nil && endDay! > startDay!
+        let (startTime, endTime) = times(for: event, line: line)
         // No stated time means all day; the user can still switch it to a timed event.
-        let isAllDay = startTime == nil || (event.timing == .allDay && isMultiDay)
+        let isAllDay = startTime == nil
+        let (startDay, endDay) = days(for: event, isAllDay: isAllDay)
 
         let (location, locationURL) = groundedLocation(event.location)
         var candidate = EventCandidate(
@@ -59,10 +69,13 @@ public struct EventResolver: Sendable {
             start: nil,
             end: nil,
             location: location,
-            url: groundedURL(event.url) ?? locationURL,
+            url: locationURL ?? DetailParsers.link(inLine: line, selection: context.selection),
             recurrence: event.recurrence.flatMap { Self.textSupports($0, for: event, in: context.selection) ? recurrence(from: $0) : nil },
-            alertMinutesBefore: event.alertMinutesBefore.filter { (0...40_320).contains($0) },
-            suggestedCalendarName: matchCalendar(event.suggestedCalendar, title: event.title)
+            alertMinutesBefore: DetailParsers.alertMinutes(in: line).filter { (0...40_320).contains($0) },
+            namedCalendar: namedCalendar(title: event.title),
+            suggestedCalendarName: event.suggestedCalendar.nonEmpty.flatMap { suggestion in
+                context.calendarNames.first { $0.caseInsensitiveCompare(suggestion) == .orderedSame }
+            }
         )
 
         if isAllDay {
@@ -71,8 +84,8 @@ public struct EventResolver: Sendable {
         } else if let startDay, let startTime {
             let start = instant(on: startDay, at: startTime, in: eventZone)
             candidate.start = start
-            candidate.end = end(for: event, endTime: endTime, start: start, startDay: startDay, endDay: endDay,
-                                zone: eventZone, assumed: &candidate.endIsAssumed)
+            candidate.end = end(endTime: endTime, duration: DetailParsers.durationMinutes(in: line), start: start,
+                                startDay: startDay, endDay: endDay, zone: eventZone, assumed: &candidate.endIsAssumed)
             if let statedZone, statedZone.secondsFromGMT(for: start) != context.timeZone.secondsFromGMT(for: start) {
                 candidate.sourceTimeZone = statedZone
             }
@@ -83,7 +96,7 @@ public struct EventResolver: Sendable {
         }
 
         candidate.notes = NotesComposer.compose(
-            summary: event.summary,
+            summary: "",
             context: context,
             sourceTimeZone: candidate.sourceTimeZone,
             start: candidate.start
@@ -93,7 +106,7 @@ public struct EventResolver: Sendable {
 
     // MARK: - Dates and times
 
-    private func days(for event: ExtractedEvent) -> (start: Date?, end: Date?) {
+    private func days(for event: ExtractedEvent, isAllDay: Bool) -> (start: Date?, end: Date?) {
         let calendar = dates.calendar
         let parsed = DatePhraseParser.parse(event.startDatePhrase)
         guard let startDay = parsed.flatMap({ dates.day(for: $0.start) }) else { return (nil, nil) }
@@ -118,7 +131,7 @@ public struct EventResolver: Sendable {
         }
         // A misread end (e.g. a time taken for a day) must never stretch the event absurdly.
         let span = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
-        let maxSpan = rolled ? Self.maxRolledSpanDays : event.timing == .allDay ? Self.maxAllDaySpanDays : Self.maxTimedSpanDays
+        let maxSpan = rolled ? Self.maxRolledSpanDays : isAllDay ? Self.maxAllDaySpanDays : Self.maxTimedSpanDays
         return (startDay, (0...maxSpan).contains(span) ? endDay : nil)
     }
 
@@ -128,23 +141,22 @@ public struct EventResolver: Sendable {
     static let maxAllDaySpanDays = 180
     static let maxRolledSpanDays = 62
 
-    /// The parsed phrase wins unless it is ambiguous ("at 7"), in which case the model's
-    /// reading — which saw the context — is used. With no time words at all, the model's
-    /// structured time is ignored: it tends to invent midnight.
-    private func times(for event: ExtractedEvent) -> (start: TimeSpec?, end: TimeSpec?) {
-        let parsed = TimePhraseParser.parse(event.timePhrase) ?? TimePhraseParser.parse(event.startDatePhrase)
-        guard let parsed else {
-            return TimePhraseParser.mentionsTime(event.timePhrase) ? (event.startTime, event.endTime) : (nil, nil)
+    /// Times come only from the words the model quoted; "at 7" is settled by the words
+    /// around it ("dinner at 7" is 7 PM).
+    private func times(for event: ExtractedEvent, line: String) -> (start: TimeSpec?, end: TimeSpec?) {
+        guard let parsed = TimePhraseParser.parse(event.timePhrase) ?? TimePhraseParser.parse(event.startDatePhrase) else {
+            return (nil, nil)
         }
-        if parsed.isAmbiguous, let modelStart = event.startTime {
-            return (modelStart, event.endTime ?? parsed.end)
+        let settled = TimePhraseParser.resolvingAmbiguity(parsed, hints: [event.timePhrase, event.title, line].joined(separator: "\n"))
+        // "…wraps up Sunday at 4pm": an end time can come with the end day.
+        let endWithDay = TimePhraseParser.parse(event.endDatePhrase).map {
+            TimePhraseParser.resolvingAmbiguity($0, hints: event.endDatePhrase + "\n" + line).start
         }
-        return (parsed.start, parsed.end ?? event.endTime)
+        return (settled.start, settled.end ?? endWithDay)
     }
 
     private func end(
-        for event: ExtractedEvent, endTime: TimeSpec?, start: Date, startDay: Date, endDay: Date?, zone: TimeZone,
-        assumed: inout Bool
+        endTime: TimeSpec?, duration: Int?, start: Date, startDay: Date, endDay: Date?, zone: TimeZone, assumed: inout Bool
     ) -> Date {
         if let endTime {
             var end = instant(on: endDay ?? startDay, at: endTime, in: zone)
@@ -155,7 +167,7 @@ public struct EventResolver: Sendable {
             }
             if end > start { return end }
         }
-        if let minutes = event.durationMinutes, minutes > 0 {
+        if let minutes = duration, minutes > 0 {
             return start.addingTimeInterval(TimeInterval(minutes * 60))
         }
         assumed = true
@@ -189,6 +201,24 @@ public struct EventResolver: Sendable {
     }
 
     // MARK: - Grounding
+
+    private static let fillerWords: Set<Substring> = ["at", "on", "the", "from", "by", "of", "in", "to", "and", "until", "till", "through"]
+
+    /// `phrase` if every meaningful word and number in it appears in the text; "" otherwise.
+    /// Abbreviations match their long form ("Oct" / "October", "Tues" / "Tuesday").
+    func grounded(_ phrase: String) -> String {
+        let words = Self.words(inPhrase: phrase).filter { !Self.fillerWords.contains($0) }
+        let found = words.allSatisfy { word in
+            sourceWords.contains(word) || (word.count >= 3 && !word.first!.isNumber
+                && sourceWords.contains { $0.count >= 3 && ($0.hasPrefix(word) || word.hasPrefix($0)) })
+        }
+        return found ? phrase : ""
+    }
+
+    /// Lowercased runs of letters or of digits: "3-5pm" → 3, 5, pm.
+    static func words(inPhrase text: String) -> [Substring] {
+        text.lowercased().matches(of: /[a-z]+|[0-9]+/).map(\.output)
+    }
 
     /// The model sometimes invents a recurrence ("every day" for a list of deadlines), so one
     /// is only kept when the event's own line says it repeats at that frequency.
@@ -228,27 +258,18 @@ public struct EventResolver: Sendable {
         return (sourceText.localizedCaseInsensitiveContains(location) ? location : nil, nil)
     }
 
-    private func groundedURL(_ text: String?) -> URL? {
-        guard let text = text.nonEmpty, sourceText.localizedCaseInsensitiveContains(text) else { return nil }
-        return Self.url(from: text)
-    }
-
-    /// A calendar named outright beats the model's semantic guess: "Office Hours" goes to a
-    /// calendar called "Office Hours", not to "Class". Any name counts in the title; only
-    /// multi-word names count in the selection, so "let's work on it" doesn't mean "Work".
-    /// The longest (most specific) match wins.
-    private func matchCalendar(_ suggestion: String?, title: String) -> String? {
+    /// A calendar the text names outright: "Office Hours" goes to a calendar called "Office
+    /// Hours", not to "Class". Any name counts in the title; only multi-word names count in the
+    /// selection, so "let's work on it" doesn't mean "Work". The longest match wins.
+    private func namedCalendar(title: String) -> String? {
         let titleWords = Self.words(title)
         let selectionWords = Self.words(context.selection)
-        let named = context.calendarNames
+        return context.calendarNames
             .sorted { $0.count > $1.count }
             .first { name in
                 let nameWords = Self.words(name)
                 return Self.contains(titleWords, nameWords) || (nameWords.count > 1 && Self.contains(selectionWords, nameWords))
             }
-        if let named { return named }
-        guard let suggestion = suggestion.nonEmpty else { return nil }
-        return context.calendarNames.first { $0.caseInsensitiveCompare(suggestion) == .orderedSame }
     }
 
     static func words(_ text: String) -> [Substring] {

@@ -9,19 +9,19 @@ the event lands in Apple Calendar.
 | # | Topic | Decision |
 |---|-------|----------|
 | 1 | App shape | Menu bar app (menu bar icon, no Dock icon). Left-click the icon opens the app window; right-click shows capture / last result / Settings / Quit. Stays alive with no windows open; idle cost ≈ zero (no timers, model loaded only on demand). |
-| 2 | Distribution | Personal first → notarized download from GitHub later → Mac App Store long-term. **Not sandboxed** for now (Accessibility API needs it). |
+| 2 | Distribution | Personal first → zipped download from GitHub Releases, **not notarized** (free team; users click "Open Anyway" once) → Mac App Store long-term. **Not sandboxed** for now (Accessibility API needs it). |
 | 3 | Triggers | Global hotkey **and** Services menu **and** an App Intent (Shortcuts/Spotlight). |
 | 4 | Context | As much as possible: selection, surrounding text of the focused element, app name, window title, page URL, email subject. Trimmed to fit the model's ~4K token window. |
 | 5 | Multiple events | Extract all; show a checklist, all checked. |
 | 6 | Fields | Title, start/end, all-day, location, notes, URL, alerts, recurrence, time zone. |
 | 7 | Missing info | A missing date must be filled in before Save is enabled; the model never guesses one. No stated time → all-day (switchable to timed). No end time → start + default duration, marked as the default length. |
 | 8 | Time zones | Converted to local time. Notes keep "Originally 3:00 PM ET". |
-| 9 | Notes | AI summary, then the original text, then the source (app / URL). |
+| 9 | Notes | The original text, then the source (app / URL). *(An AI summary was dropped: it cost ~1 s per event.)* |
 | 10 | Calendar | Model suggests one of your calendars by name; full calendar access. |
 | 11 | Conflicts | Inline warning in the preview panel. |
 | 12 | Confirmation | Always preview. "Trust mode" (save instantly + Undo notification) as a setting. |
 | 13 | Panel | Floating panel near the mouse cursor. |
-| 14 | After save | Notification with "Open in Calendar". |
+| 14 | After save | The panel shows "Added…" with Undo and Open in Calendar; every added event is kept in History (main window) with Open and Remove. |
 | 15 | Min OS | macOS 26+. NSDataDetector-only fallback when Apple Intelligence is unavailable. |
 | 16 | Language | English first. |
 | 17 | Tests | Deterministic unit tests + fixture-based model tests. |
@@ -49,13 +49,15 @@ Tuesday at 3, in Bourns A265") and bad at *calendar arithmetic*. In testing it a
 numeric fields (month, day) empty, while reliably copying the right words. So the model returns
 **verbatim phrases** (`startDatePhrase: "next Tuesday"`, `timePhrase: "3-5pm"`) and
 `DatePhraseParser` / `TimePhraseParser` / `DateResolver` turn them into real dates against a
-reference date and time zone. The model's own structured time is only used to settle ambiguous
-phrases ("at 7" → dinner → 19:00). Locations and links are dropped unless they appear in the text.
+reference date and time zone. Generation time is dominated by output tokens, so the model fills
+only 7 fields (title, date/time phrases, place, repetition, calendar); time zones, links,
+durations and reminders are parsed in Swift, and "at 7" is settled by nearby words ("dinner" →
+7 PM). Every quoted phrase must actually appear in the text. Locations and links are dropped unless they appear in the text.
 All of that is pure and unit-tested.
 
 ## Phases
 
-Status: phases 1–6 done (76 tests passing, incl. 18 on-device model fixtures).
+Status: phases 1–7 done (83 tests passing, incl. 18 on-device model fixtures). Extraction: ~3 s for one event. First release: 0.1.0 via `scripts/release.sh`.
 
 1. **Scaffold** — XcodeGen project, menu bar app lifecycle, core Swift package.
 2. **Extraction engine** — schema, prompt, resolvers, fallback extractor, tests, Try-It window.

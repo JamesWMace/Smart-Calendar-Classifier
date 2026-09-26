@@ -17,7 +17,7 @@ struct PreviewView: View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 16)
-                .padding(.top, 14)
+                .padding(.top, 12)
                 .padding(.bottom, 10)
             Divider()
             content
@@ -174,7 +174,9 @@ struct PreviewView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("How this was captured")
-                .popover(isPresented: $showDetails, arrowEdge: .bottom) { CaptureDetails(capture: model.capture, engine: model.engine) }
+                .popover(isPresented: $showDetails, arrowEdge: .bottom) {
+                    CaptureDetails(capture: model.capture, engine: model.engine, timing: model.timing)
+                }
 
                 if let message = model.errorMessage ?? model.saveBlocker {
                     Text(message).font(.caption).foregroundStyle(model.errorMessage == nil ? Color.secondary : .red).lineLimit(2)
@@ -270,6 +272,7 @@ private struct EventRow: View {
                 Circle().fill(Color(red: calendar.red, green: calendar.green, blue: calendar.blue)).frame(width: 8, height: 8)
                 Text(calendar.title).font(.caption).foregroundStyle(.secondary)
             }
+            .help(item.calendarReason ?? "")
         }
     }
 }
@@ -361,12 +364,17 @@ private struct EventEditor: View {
             }
             GridRow {
                 label("Calendar")
-                Picker("", selection: $item.calendarID) {
-                    CalendarPickerItems(calendars: calendars.calendars)
+                VStack(alignment: .leading, spacing: 2) {
+                    Picker("", selection: $item.calendarID) {
+                        CalendarPickerItems(calendars: calendars.calendars)
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .disabled(!calendars.hasFullAccess)
+                    if let reason = item.calendarReason {
+                        Text(reason).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
-                .labelsHidden()
-                .fixedSize()
-                .disabled(!calendars.hasFullAccess)
             }
         }
         .font(.callout)
@@ -403,6 +411,7 @@ private struct EventEditor: View {
 private struct CaptureDetails: View {
     let capture: CapturedText
     let engine: ExtractionService.Engine?
+    let timing: String?
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
@@ -413,6 +422,7 @@ private struct CaptureDetails: View {
                 case .dataDetector(let reason): row("Read by", "Basic date detector — \(reason)")
                 }
             }
+            if let timing { row("Took", timing) }
             if let url = capture.url { row("Page", url.absoluteString) }
             row("Context", "\(capture.before?.count ?? 0) characters before, \(capture.after?.count ?? 0) after")
             if !capture.trace.isEmpty { row("Log", capture.trace.joined(separator: " → ")) }

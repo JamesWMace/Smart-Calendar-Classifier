@@ -8,23 +8,25 @@ import SwiftUI
 @MainActor
 final class AppWindows {
     private let calendars: CalendarService
-    private var tryIt: NSWindow?
+    private let history: HistoryStore
+    private var main: NSWindow?
     private var settings: NSWindow?
     private var onboarding: NSWindow?
 
-    init(calendars: CalendarService) {
+    init(calendars: CalendarService, history: HistoryStore) {
         self.calendars = calendars
+        self.history = history
     }
 
-    func showTryIt() {
-        let window = tryIt ?? makeWindow(
+    func showMain() {
+        let window = main ?? makeWindow(
             title: "Smart Calendar Classifier",
-            content: TryItView(),
+            content: MainView(),
             style: [.titled, .closable, .miniaturizable, .resizable],
-            autosaveName: "TryItWindow",
+            autosaveName: "MainWindow",
             size: NSSize(width: 760, height: 680)
         )
-        tryIt = window
+        main = window
         bringForward(window)
     }
 
@@ -56,7 +58,7 @@ final class AppWindows {
         title: String, content: some View, style: NSWindow.StyleMask, autosaveName: String,
         size: NSSize? = nil, sizesToContent: Bool = false
     ) -> NSWindow {
-        let controller = NSHostingController(rootView: content.environment(calendars))
+        let controller = NSHostingController(rootView: content.environment(calendars).environment(history))
         if sizesToContent { controller.sizingOptions = [.preferredContentSize] }
         let window = NSWindow(contentViewController: controller)
         window.title = title

@@ -222,6 +222,8 @@ enum SelectionReader {
     /// All of a page's text: through text markers where supported (Safari/WebKit), otherwise
     /// by collecting the page's text nodes in document order (Chrome).
     private static func pageText(_ webArea: AXUIElement, trace: inout [String]) -> String? {
+        let began = Date.now
+        defer { trace.append(String(format: "page text took %.2fs", Date.now.timeIntervalSince(began))) }
         if let start = attribute(webArea, "AXStartTextMarker"), let end = attribute(webArea, "AXEndTextMarker"),
            let text = webText(webArea, from: start, to: end), !text.isBlank {
             trace.append("read page text (\(text.count) chars)")

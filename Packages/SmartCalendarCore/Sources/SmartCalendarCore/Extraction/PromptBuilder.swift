@@ -23,8 +23,8 @@ public enum PromptBuilder {
         events for other things mentioned only in the context.
         - Never invent a date or a time. If the text does not state one, use kind missing or \
         leave the time out.
-        - Copy dates, times and time zones as written. Do not convert time zones and do not \
-        calculate dates; describe them with the date fields.
+        - Copy the words for dates, times and time zones exactly as written. Do not convert \
+        or calculate anything.
         - One event per distinct occasion. A time range such as '3-5pm' is one event with a \
         start and end time. A multi-day range such as 'Oct 3-5' is one event with an end date.
         - Deadlines such as 'due Friday' or 'submit by Oct 3' are events whose title ends in 'Due' or 'Deadline'.

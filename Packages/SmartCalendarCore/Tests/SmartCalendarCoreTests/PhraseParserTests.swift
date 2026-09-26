@@ -95,3 +95,38 @@ struct TimePhraseParserTests {
         #expect(parse("in the afternoon") == "nil")
     }
 }
+
+@Suite("DetailParsers")
+struct DetailParsersTests {
+    @Test(arguments: [
+        ("2-hour workshop", 120), ("a 90 minute session", 90), ("for an hour", 60), ("1.5 hrs", 90),
+        ("half an hour check-in", 30), ("45 mins", 45),
+    ])
+    func durations(_ text: String, _ minutes: Int) {
+        #expect(DetailParsers.durationMinutes(in: text) == minutes)
+    }
+
+    @Test(arguments: ["2 hours before the deadline", "in 3 hours", "every hour", "no length here"])
+    func notDurations(_ text: String) {
+        #expect(DetailParsers.durationMinutes(in: text) == nil)
+    }
+
+    @Test func alerts() {
+        #expect(DetailParsers.alertMinutes(in: "Remind me 30 minutes before") == [30])
+        #expect(DetailParsers.alertMinutes(in: "Reminder: 1 day before and 2 hours before") == [1_440, 120])
+        #expect(DetailParsers.alertMinutes(in: "Arrive 15 minutes early") == [])
+    }
+
+    @Test func ambiguity() {
+        let at = { (phrase: String, hints: String) -> Int? in
+            TimePhraseParser.parse(phrase).map { TimePhraseParser.resolvingAmbiguity($0, hints: hints).start.hour }
+        }
+        #expect(at("at 7", "dinner") == 19)
+        #expect(at("at 7", "breakfast") == 7)
+        #expect(at("at 7", "") == 19)
+        #expect(at("at 8", "") == 8)
+        #expect(at("at 12", "") == 12)
+        #expect(at("at 9", "tonight") == 21)
+        #expect(at("7pm", "breakfast") == 19) // explicit beats hints
+    }
+}

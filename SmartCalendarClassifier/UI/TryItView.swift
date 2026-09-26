@@ -190,6 +190,7 @@ struct TryItView: View {
 private struct CandidateCard: View {
     let candidate: EventCandidate
     @Environment(CalendarService.self) private var calendars
+    @Environment(HistoryStore.self) private var history
     @AppStorage(SettingsKey.defaultCalendarID) private var preferredCalendarID = ""
     @AppStorage(SettingsKey.defaultAlertMinutes) private var defaultAlertMinutes = -1
 
@@ -270,17 +271,18 @@ private struct CandidateCard: View {
 
     private func refreshCalendarState() {
         if calendarID.isEmpty || !calendars.calendars.contains(where: { $0.id == calendarID }) {
-            calendarID = calendars.calendarID(
-                suggestedName: candidate.suggestedCalendarName,
-                preferredID: preferredCalendarID.isEmpty ? nil : preferredCalendarID
-            ) ?? ""
+            calendarID = calendars.choose(
+                for: candidate, source: nil, preferredID: preferredCalendarID.isEmpty ? nil : preferredCalendarID
+            )?.calendarID ?? ""
         }
         conflicts = calendars.conflicts(for: candidate)
     }
 
     private func save() {
         do {
-            saved = try calendars.save(candidate, calendarID: calendarID, defaultAlertMinutes: defaultAlertMinutes.alertMinutesSetting)
+            let event = try calendars.save(candidate, calendarID: calendarID, defaultAlertMinutes: defaultAlertMinutes.alertMinutesSetting)
+            saved = event
+            history.record([event], source: "Try It")
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -290,6 +292,7 @@ private struct CandidateCard: View {
     private func undo(_ event: SavedEvent) {
         do {
             try calendars.remove(event)
+            history.markRemoved([event])
             saved = nil
         } catch {
             errorMessage = error.localizedDescription

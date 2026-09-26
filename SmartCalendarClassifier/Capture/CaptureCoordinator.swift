@@ -76,6 +76,7 @@ final class CaptureCoordinator {
     /// it selected, so try to add its surroundings too.
     func receiveFromService(_ text: String) {
         FoundationModelsExtractor.prewarm()
+        let began = Date.now
         let app = NSWorkspace.shared.frontmostApplication.flatMap { $0.processIdentifier == ownPID ? nil : $0 } ?? lastExternalApp
         var captured = CapturedText(selection: text, appName: app?.localizedName, appBundleID: app?.bundleIdentifier, method: .service)
         guard let app, AccessibilityPermission.shared.isTrusted else {
@@ -100,6 +101,7 @@ final class CaptureCoordinator {
                 captured.after = found.after
                 captured.trace += found.trace
             }
+            captured.trace.append(String(format: "capture took %.2fs", Date.now.timeIntervalSince(began)))
             deliver(captured)
         }
     }

@@ -59,7 +59,9 @@ public struct FoundationModelsExtractor: Sendable {
     public func stream(from context: CaptureContext) -> AsyncThrowingStream<ExtractedEvent, Error> {
         let prompt = PromptBuilder.prompt(for: context)
         return AsyncThrowingStream { continuation in
-            let task = Task {
+            // The model runs in a system process at the priority of the request; the user is
+            // waiting on this, so don't let it inherit a lower one from whoever called.
+            let task = Task(priority: .userInitiated) {
                 do {
                     let session = Self.takeSession()
                     let response = session.streamResponse(

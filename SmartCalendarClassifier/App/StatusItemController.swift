@@ -26,7 +26,7 @@ final class StatusItemController: NSObject {
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
             showMenu()
         } else {
-            windows.showTryIt()
+            windows.showMain()
         }
     }
 
@@ -50,7 +50,7 @@ final class StatusItemController: NSObject {
             menu.addItem(action("Show Last Result") { [preview] in preview.reopen() })
         }
         menu.addItem(.separator())
-        menu.addItem(action("Open Smart Calendar Classifier") { [windows] in windows.showTryIt() })
+        menu.addItem(action("Open Smart Calendar Classifier") { [windows] in windows.showMain() })
         menu.addItem(action("Settings…", key: ",") { [windows] in windows.showSettings() })
         menu.addItem(action("Setup Guide…") { [windows] in windows.showOnboarding() })
         menu.addItem(.separator())
