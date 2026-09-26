@@ -26,6 +26,9 @@ public struct EventCandidate: Identifiable, Sendable, Equatable {
     public var notes: String
     public var recurrence: Recurrence?
     public var alertMinutesBefore: [Int]
+    /// A calendar the text names outright ("Office Hours"); beats every other signal.
+    public var namedCalendar: String?
+    /// The model's guess from calendar names alone; the weakest signal.
     public var suggestedCalendarName: String?
     /// The zone the text was written in, when it differs from the user's.
     public var sourceTimeZone: TimeZone?
@@ -43,6 +46,7 @@ public struct EventCandidate: Identifiable, Sendable, Equatable {
         notes: String = "",
         recurrence: Recurrence? = nil,
         alertMinutesBefore: [Int] = [],
+        namedCalendar: String? = nil,
         suggestedCalendarName: String? = nil,
         sourceTimeZone: TimeZone? = nil
     ) {
@@ -58,6 +62,7 @@ public struct EventCandidate: Identifiable, Sendable, Equatable {
         self.notes = notes
         self.recurrence = recurrence
         self.alertMinutesBefore = alertMinutesBefore
+        self.namedCalendar = namedCalendar
         self.suggestedCalendarName = suggestedCalendarName
         self.sourceTimeZone = sourceTimeZone
     }

@@ -10,7 +10,20 @@ final class PreviewModel {
         var candidate: EventCandidate
         var isIncluded = true
         var calendarID: String
+        /// How the calendar was picked; stale once the user picks another.
+        var choice: CalendarChoice?
         var id: UUID { candidate.id }
+
+        /// Why this calendar, while it's still the app's pick.
+        var calendarReason: String? {
+            guard let choice, choice.calendarID == calendarID else { return nil }
+            return switch choice.reason {
+            case .namedInText: "Named in the text"
+            case .similarEvents: "Similar events are in this calendar"
+            case .suggested: "Suggested by Apple Intelligence"
+            case .defaultCalendar: nil
+            }
+        }
     }
 
     enum Phase: Equatable {
@@ -24,13 +37,21 @@ final class PreviewModel {
     private(set) var phase = Phase.extracting
     private(set) var engine: ExtractionService.Engine?
     var errorMessage: String?
+    /// How long reading took ("first event 2.1 s, all 3.4 s"), for the details popover.
+    private(set) var timing: String?
+    @ObservationIgnored private var firstEventAfter: Duration?
+    #if DEBUG
+    @ObservationIgnored private(set) var debugPrompt = ""
+    #endif
 
     @ObservationIgnored let calendars: CalendarService
+    @ObservationIgnored private let history: HistoryStore
     @ObservationIgnored private var task: Task<Void, Never>?
 
-    init(capture: CapturedText, calendars: CalendarService) {
+    init(capture: CapturedText, calendars: CalendarService, history: HistoryStore) {
         self.capture = capture
         self.calendars = calendars
+        self.history = history
     }
 
     var included: [Item] { items.filter(\.isIncluded) }
@@ -65,10 +86,23 @@ final class PreviewModel {
                 if !names.contains(title) { names.append(title) }
             }
         )
+        #if DEBUG
+        debugPrompt = PromptBuilder.prompt(for: context)
+        #endif
         let service = ExtractionService(options: ResolutionOptions(defaultDurationMinutes: Int(defaultDuration / 60)))
-        task = Task { [weak self] in
-            let outcome = await service.extract(from: context) { [weak self] candidate in self?.append(candidate) }
+        let clock = ContinuousClock()
+        let began = clock.now
+        // A menu bar app is never frontmost; without this, App Nap throttles the extraction.
+        let activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .latencyCritical], reason: "Reading events")
+        task = Task(priority: .userInitiated) { [weak self] in
+            defer { ProcessInfo.processInfo.endActivity(activity) }
+            let outcome = await service.extract(from: context) { [weak self] candidate in
+                if self?.firstEventAfter == nil { self?.firstEventAfter = clock.now - began }
+                self?.append(candidate)
+            }
             guard let self, !Task.isCancelled else { return }
+            let format = { (duration: Duration) in duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow, maximumUnitCount: 1)) }
+            timing = (firstEventAfter.map { "first event \(format($0)), " } ?? "") + "all \(format(clock.now - began))"
             engine = outcome.engine
             if phase == .extracting { phase = .ready }
             // Trust mode (decision #12): add right away unless something needs the user.
@@ -96,6 +130,7 @@ final class PreviewModel {
                 saved.append(try calendars.save(item.candidate, calendarID: item.calendarID, defaultAlertMinutes: alerts))
             }
             errorMessage = nil
+            history.record(saved, source: capture.appName)
             phase = .saved(saved)
         } catch {
             // Don't leave half a batch behind.
@@ -107,12 +142,13 @@ final class PreviewModel {
     func undo() {
         guard case .saved(let saved) = phase else { return }
         for event in saved { try? calendars.remove(event) }
+        history.markRemoved(saved)
         phase = .ready
     }
 
     private func append(_ candidate: EventCandidate) {
         let preferred = UserDefaults.standard.string(forKey: SettingsKey.defaultCalendarID).flatMap { $0.isEmpty ? nil : $0 }
-        let calendarID = calendars.calendarID(suggestedName: candidate.suggestedCalendarName, preferredID: preferred) ?? ""
-        items.append(Item(candidate: candidate, calendarID: calendarID))
+        let choice = calendars.choose(for: candidate, source: capture.appName, preferredID: preferred)
+        items.append(Item(candidate: candidate, calendarID: choice?.calendarID ?? "", choice: choice))
     }
 }

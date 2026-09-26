@@ -9,15 +9,25 @@ import SmartCalendarCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Shared by the windows and the preview panel.
     let calendars = CalendarService()
-    private(set) lazy var windows = AppWindows(calendars: calendars)
-    private lazy var previewPanel = PreviewPanelController(calendars: calendars)
+    let history = HistoryStore(fileURL: HistoryStore.defaultFileURL)
+    private(set) lazy var windows = AppWindows(calendars: calendars, history: history)
+    private lazy var previewPanel = PreviewPanelController(calendars: calendars, history: history)
     private var statusItem: StatusItemController?
     private var hotKey: HotKey?
     private let serviceProvider = ServiceProvider()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Where events from each app went before helps pick calendars for new ones.
+        calendars.historyProvider = { [history] in history.entries }
         CaptureCoordinator.shared.present = { [weak self] capture in self?.previewPanel.show(capture) }
         statusItem = StatusItemController(windows: windows, preview: previewPanel)
+        #if DEBUG
+        DebugSnapshot.install(
+            closing: { [weak self] in self?.previewPanel.debugPanel },
+            trace: { [weak self] in self?.previewPanel.debugTrace ?? [] },
+            close: { [weak self] in self?.previewPanel.close() }
+        )
+        #endif
         ShortcutStore.shared.onChange = { [weak self] in self?.registerHotKey() }
         registerHotKey()
         NSApp.servicesProvider = serviceProvider

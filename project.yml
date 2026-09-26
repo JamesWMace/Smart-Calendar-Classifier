@@ -51,6 +51,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.jamesmace.SmartCalendarClassifier
         PRODUCT_NAME: Smart Calendar Classifier
         PRODUCT_MODULE_NAME: SmartCalendarClassifier
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         ENABLE_HARDENED_RUNTIME: YES

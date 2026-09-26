@@ -35,25 +35,29 @@ final class PreviewPanel: NSPanel {
 @MainActor
 final class PreviewPanelController: NSObject, NSWindowDelegate {
     private let calendars: CalendarService
+    private let history: HistoryStore
     private let panel = PreviewPanel()
     private var model: PreviewModel?
     /// Where the panel's top-left corner should stay as its height changes.
     private var anchor: NSPoint?
 
-    init(calendars: CalendarService) {
+    init(calendars: CalendarService, history: HistoryStore) {
         self.calendars = calendars
+        self.history = history
         super.init()
         panel.delegate = self
     }
 
     func show(_ capture: CapturedText) {
         model?.cancel()
-        let model = PreviewModel(capture: capture, calendars: calendars)
+        let model = PreviewModel(capture: capture, calendars: calendars, history: history)
         self.model = model
 
         let hosting = NSHostingController(rootView: PreviewView(model: model) { [weak self] in self?.close() }
             .environment(calendars))
         hosting.sizingOptions = [.preferredContentSize]
+        // The (hidden) title bar would otherwise reserve an empty strip above the content.
+        hosting.safeAreaRegions = []
         panel.contentViewController = hosting
 
         anchor = nil
@@ -62,6 +66,15 @@ final class PreviewPanelController: NSObject, NSWindowDelegate {
         panel.makeKeyAndOrderFront(nil)
         model.start()
     }
+
+    #if DEBUG
+    /// The panel, for debug snapshots.
+    var debugPanel: NSPanel { panel }
+    /// The current capture's log.
+    var debugTrace: [String] {
+        (model?.capture.trace ?? []) + ["PROMPT:", model?.debugPrompt ?? "", model?.timing ?? "extraction not finished"]
+    }
+    #endif
 
     func close() {
         model?.cancel()

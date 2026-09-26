@@ -83,13 +83,16 @@ public enum TimePhraseParser {
         )
     }
 
-    /// "3pm", "11:59 pm", "14:00", "at 7"
+    /// "3pm", "11:59 pm", "14:00", "at 7"; two separate times ("10am … Sunday at 4pm") are a
+    /// start and an end.
     private static func single(in text: String) -> Result? {
-        if let m = text.firstMatch(of: /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/),
-           let hour = Int(m.1), (1...12).contains(hour), let meridiem = Meridiem(m.3) {
+        let explicit = text.matches(of: /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/).compactMap { m -> TimeSpec? in
+            guard let hour = Int(m.1), (1...12).contains(hour), let meridiem = Meridiem(m.3) else { return nil }
             let minute = m.2.flatMap { Int($0) } ?? 0
-            guard (0...59).contains(minute) else { return nil }
-            return Result(start: TimeSpec(hour: to24(hour, meridiem), minute: minute), end: nil, isAmbiguous: false)
+            return (0...59).contains(minute) ? TimeSpec(hour: to24(hour, meridiem), minute: minute) : nil
+        }
+        if let first = explicit.first {
+            return Result(start: first, end: explicit.count > 1 ? explicit.last : nil, isAmbiguous: false)
         }
         if let m = text.firstMatch(of: /\b(\d{1,2}):(\d{2})\b/),
            let hour = Int(m.1), let minute = Int(m.2), (0...23).contains(hour), (0...59).contains(minute) {
