@@ -9,6 +9,8 @@ enum SettingsKey {
     static let defaultAlertMinutes = "defaultAlertMinutes"
     /// Add events without the preview when nothing is missing (decision #12).
     static let trustMode = "trustMode"
+    /// Write an AI summary into each event's notes after the events appear.
+    static let summarizeNotes = "summarizeNotes"
     static let onboardingCompleted = "onboardingCompleted"
 }
 
@@ -23,6 +25,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.defaultCalendarID) private var defaultCalendarID = ""
     @AppStorage(SettingsKey.defaultAlertMinutes) private var defaultAlertMinutes = -1
     @AppStorage(SettingsKey.trustMode) private var trustMode = false
+    @AppStorage(SettingsKey.summarizeNotes) private var summarizeNotes = false
     private let launchAtLogin = LaunchAtLogin.shared
 
     var body: some View {
@@ -72,6 +75,10 @@ struct SettingsView: View {
                     }
                 }
                 Text("Used when the text doesn’t ask for a reminder itself.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Write a summary in each event’s notes", isOn: $summarizeNotes)
+                Text("Apple Intelligence adds a sentence or two about the event above the original text. Events appear just as fast; summaries follow about a second each, and events you’ve already added are updated when theirs is ready.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

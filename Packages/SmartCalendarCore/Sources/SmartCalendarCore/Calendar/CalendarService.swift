@@ -223,6 +223,13 @@ public final class CalendarService {
         hasFullAccess && store.event(withIdentifier: saved.eventIdentifier) != nil
     }
 
+    /// Replaces a saved event's notes, e.g. when its summary arrives after it was added.
+    public func updateNotes(of saved: SavedEvent, to notes: String) throws {
+        guard let event = store.event(withIdentifier: saved.eventIdentifier) else { return }
+        event.notes = notes
+        try store.save(event, span: .futureEvents, commit: true)
+    }
+
     /// Undo for a saved event.
     public func remove(_ saved: SavedEvent) throws {
         guard let event = store.event(withIdentifier: saved.eventIdentifier) else { return }

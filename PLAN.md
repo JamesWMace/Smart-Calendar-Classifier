@@ -16,7 +16,7 @@ the event lands in Apple Calendar.
 | 6 | Fields | Title, start/end, all-day, location, notes, URL, alerts, recurrence, time zone. |
 | 7 | Missing info | A missing date must be filled in before Save is enabled; the model never guesses one. No stated time → all-day (switchable to timed). No end time → start + default duration, marked as the default length. |
 | 8 | Time zones | Converted to local time. Notes keep "Originally 3:00 PM ET". |
-| 9 | Notes | The original text, then the source (app / URL). *(An AI summary was dropped: it cost ~1 s per event.)* |
+| 9 | Notes | The original text, then the source (app / URL). Optional AI summary on top (Settings, off by default): written after the events appear so it never slows them, and applied to events already added. |
 | 10 | Calendar | Model suggests one of your calendars by name; full calendar access. |
 | 11 | Conflicts | Inline warning in the preview panel. |
 | 12 | Confirmation | Always preview. "Trust mode" (save instantly + Undo notification) as a setting. |
