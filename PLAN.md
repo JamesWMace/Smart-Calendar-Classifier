@@ -45,7 +45,7 @@ Packages/SmartCalendarCore  (pure Swift, unit-tested with `swift test`)
 ```
 
 **Key idea:** the ~3B on-device model is good at *understanding* ("this is a midterm, it's next
-Tuesday at 3, in Bourns A265") and bad at *calendar arithmetic*. In testing it also left optional
+Tuesday at 3, in Science Hall 204") and bad at *calendar arithmetic*. In testing it also left optional
 numeric fields (month, day) empty, while reliably copying the right words. So the model returns
 **verbatim phrases** (`startDatePhrase: "next Tuesday"`, `timePhrase: "3-5pm"`) and
 `DatePhraseParser` / `TimePhraseParser` / `DateResolver` turn them into real dates against a

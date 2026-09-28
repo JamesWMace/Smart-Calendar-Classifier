@@ -20,7 +20,10 @@ Requires Xcode 26+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew 
 xcodegen generate            # creates SmartCalendarClassifier.xcodeproj from project.yml
 open SmartCalendarClassifier.xcodeproj
 ```
-Set your own team in `project.yml` (`DEVELOPMENT_TEAM`) to sign it.
+It builds and runs as-is, signed to run locally. To sign with your own Apple team (so macOS keeps
+the app's calendar and Accessibility permissions across rebuilds), copy
+`Config/Local.xcconfig.example` to `Config/Local.xcconfig` and set your team ID; that file is
+git-ignored.
 
 ## Tests
 The extraction engine lives in `Packages/SmartCalendarCore` and is tested on its own:
@@ -37,3 +40,6 @@ scripts/release.sh           # builds, verifies the signature, and zips the app 
 ```
 It prints the `gh release create` command to publish the zip. The icon is drawn by
 `scripts/make-icon.swift`; run `scripts/make-icon.sh` after changing it.
+
+## License
+[MIT](LICENSE)

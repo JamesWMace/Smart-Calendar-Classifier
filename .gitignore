@@ -6,3 +6,4 @@ build/
 xcuserdata/
 .swiftpm/
 SmartCalendarClassifier.xcodeproj/
+Config/Local.xcconfig
