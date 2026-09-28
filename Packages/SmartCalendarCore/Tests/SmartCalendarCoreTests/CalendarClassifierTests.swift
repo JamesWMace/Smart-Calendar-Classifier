@@ -9,8 +9,8 @@ struct CalendarClassifierTests {
         func add(_ calendar: String, _ text: String, times: Int = 1, source: String? = nil) {
             examples += Array(repeating: CalendarClassifier.Example(calendarID: calendar, text: text, source: source), count: times)
         }
-        add("class", "CS 153 Lecture WCH 110", times: 30)
-        add("class", "CS160 Lab Bourns A265", times: 15)
+        add("class", "CS 153 Lecture Hall 110", times: 30)
+        add("class", "CS160 Lab Science Hall 204", times: 15)
         add("class", "MATH 120 Discussion", times: 10)
         add("class", "Homework 3 Due", source: "Canvas")
         add("work", "Team Standup", times: 40)
@@ -19,7 +19,7 @@ struct CalendarClassifierTests {
         add("personal", "Dinner with Priya")
         add("personal", "Dentist appointment")
         add("personal", "Mom's birthday")
-        add("office", "Office Hours WCH 110", times: 20)
+        add("office", "Office Hours Hall 110", times: 20)
         return CalendarClassifier(examples: examples)
     }()
 
@@ -46,8 +46,8 @@ struct CalendarClassifierTests {
     }
 
     @Test func ambiguousEvidenceIsNotEnough() {
-        // "WCH 110" is where both lectures and office hours happen.
-        #expect(classifier.classify("Session in WCH 110") == nil)
+        // "Hall 110" is where both lectures and office hours happen.
+        #expect(classifier.classify("Session in Hall 110") == nil)
     }
 
     @Test func tokens() {

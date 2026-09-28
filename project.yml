@@ -41,6 +41,10 @@ targets:
               - public.plain-text
             NSRequiredContext: {}
         NSAppleEventsUsageDescription: Smart Calendar Classifier reads the current page address from your browser so events can link back to where you found them.
+    configFiles:
+      # Signing lives here so a local, git-ignored file can hold the team ID.
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
     entitlements:
       path: SmartCalendarClassifier/SmartCalendarClassifier.entitlements
       properties:
@@ -55,9 +59,6 @@ targets:
         MARKETING_VERSION: 0.1.1
         CURRENT_PROJECT_VERSION: 2
         ENABLE_HARDENED_RUNTIME: YES
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: Apple Development
-        DEVELOPMENT_TEAM: KADXNL8W7B
         ENABLE_USER_SCRIPT_SANDBOXING: YES
 schemes:
   SmartCalendarClassifier:
